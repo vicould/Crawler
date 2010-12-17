@@ -1,0 +1,16 @@
+Thematic web crawler
+____________________
+
+Authors :
+Nicolas Bontoux
+Ludovic Delaveau
+
+
+This a thematic web crawler written in Python for the purpose of a project in the class of "aspects avancés du web". 
+
+
+Objectives :
+ * simple crawler: goes through a list of domains and follows the links contained in the pages
+ * thematic crawler: tries to limitate the field of interest to a given thema
+ * studies the links network using PageRank and Hits
+ * indexes and queries the collection

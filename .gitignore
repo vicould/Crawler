@@ -4,3 +4,6 @@
 
 # ignore compiled files :
 *.pyc
+
+# ignore crawler log files :
+crawler*.log

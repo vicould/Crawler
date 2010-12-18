@@ -6,4 +6,5 @@
 *.pyc
 
 # ignore crawler log files :
-crawler*.log
+log
+log/*

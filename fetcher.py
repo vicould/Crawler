@@ -22,9 +22,7 @@ class Crawler:
     def __init__(self, base_url):
         self.__url_to_visit += base_url
         self.__logger_instance = logger.Logger('crawler', """This is a dummy\
- crawler, written by Nicolas\
- Bontoux and Ludovic\
- Delaveau.\nAnd here is a log\
+ crawler, written by Nicolas Bontoux and Ludovic Delaveau.\nAnd here is a log\
  entry. """)
 
         o = urlparse.urlparse(base_url)
@@ -72,6 +70,7 @@ class Crawler:
 
 
     def get_keywords(self, html_page):
+        """Looks for keywords in the page"""
         keyword_re = re.compile(r'<meta\sname=[\'|"]keywords[\'|"]\s' 
                    + r'content=[\'|"](.*?)[\'|"].*>')
 
@@ -80,6 +79,8 @@ class Crawler:
 
 
     def set_domain(self, domain):
+        """Sets the domain of the current request in order to use the robots
+        directives."""
         self.domain  = domain
         robots_url = urlparse.urljoin(domain, 'robots.txt')
         self.__logger_instance.log_event('Robots on %s' % domain,

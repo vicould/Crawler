@@ -8,6 +8,7 @@ import urllib2
 from urllib2 import URLError, HTTPError
 import urlparse
 import robotparser
+import re
 
 # modules from the project
 import logger
@@ -64,8 +65,11 @@ class Crawler:
 
     def get_anchors(self, html_page):
         """Searches the anchors in a html page"""
+        anchor_re = re.compile(r'<a\s*href=[\'|"](.*?)[\'|"].*>')
         html = html_page
-        print html
+
+        links = anchor_re.findall(html)
+        print links
 
 
     def set_domain(self, domain):

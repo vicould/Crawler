@@ -66,10 +66,17 @@ class Crawler:
     def get_anchors(self, html_page):
         """Searches the anchors in a html page"""
         anchor_re = re.compile(r'<a\s*href=[\'|"](.*?)[\'|"].*>')
-        html = html_page
 
-        links = anchor_re.findall(html)
+        links = anchor_re.findall(html_page)
         print links
+
+
+    def get_keywords(self, html_page):
+        keyword_re = re.compile(r'<meta\sname=[\'|"]keywords[\'|"]\s' 
+                   + r'content=[\'|"](.*?)[\'|"].*>')
+
+        keywords = keyword_re.findall(html_page)
+        print keywords
 
 
     def set_domain(self, domain):
@@ -85,4 +92,7 @@ class Crawler:
 if __name__ == '__main__':
     base_url = sys.argv[1]
     a = Crawler(base_url)
-    a.get_anchors(a.fetcher(base_url))
+    html = a.fetcher(base_url)
+    a.get_anchors(html)
+    a.get_keywords(html)
+

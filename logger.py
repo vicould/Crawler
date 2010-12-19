@@ -30,13 +30,20 @@ class Logger:
         file.write('\n\n\n')
         file.close()
 
+    def log_short_message(self, msg):
+        """Writes a single (small) message"""
+        file = open(self.filename, 'a')
+        file.write(datetime.datetime.now().strftime("%c") + ' - ' + msg + '\n')
+        file.close()
+
     def log_event(self, event_name, event):
         """Writes an event occuring to the current log file. 
         event_name is written, and then the description of the event is added.
         Event should be an iterable."""
         file = open(self.filename, 'a')
-        file.write(event_name + ':\n')
+        file.write(datetime.datetime.now().strftime("%c") + ' ' + event_name + ':\n')
         for line in event:
             file.write('    ' + line)
         file.write('\n\n')
+        file.close()
 

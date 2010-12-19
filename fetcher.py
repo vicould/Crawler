@@ -122,6 +122,7 @@ class Crawler:
     def handler(self):
         i = 0
         while (i < 100 and self.__url_to_visit.__len__() > 0):
+            time.sleep(1) # waits 1s at each step
             i = i + 1
             current_url = self.__url_to_visit.pop(0)
             split_url = urlparse.urlparse(current_url)

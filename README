@@ -14,3 +14,11 @@ Objectives :
  * thematic crawler: tries to limitate the field of interest to a given thema
  * studies the links network using PageRank and Hits
  * indexes and queries the collection
+
+Logging features :
+ * collected pages, filtrated, URLs and servers visited, invalids URLs, URLs still to collect, keywords, pages sizes etc.
+ * list of URLs
+ * list of links, with origin, target, and anchor
+ * text content of the html pages without the tags
+ * words found and their occurence
+ * robots.txt directives

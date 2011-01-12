@@ -3,11 +3,14 @@ import datetime
 import os
 
 class Logger:
+    """Logger class, receiving two types of events to log"""
     filename = ''
     header = []
 
 
     def __init__(self, prefix, header):
+        """Initializes the logger, creating a new file with the given prefix,
+        and writes down the header to the file."""
         try:
             os.chdir('log')
         except OSError, e:

@@ -1,0 +1,6 @@
+TODO :
+______
+
+ * Improve logging : wrap lines ?
+ * Sort the list of urls containing the url to visit
+ * Process the page (remove tags, get anchors name)

@@ -11,21 +11,14 @@ class Logger:
     def __init__(self, prefix, header):
         """Initializes the logger, creating a new file with the given prefix,
         and writes down the header to the file."""
-        try:
-            os.chdir('log')
-        except OSError, e:
-            if (e.errno == 2):
-                try:
-                    os.mkdir('log', 0755)
-                    os.chdir('log')
-                except OSError, e:
-                    print e
-            else:
-                print 'could not chdir log'
+        if (not os.listdir(os.getcwd()).__contains__('log')):
+            os.mkdir('log', 0755)
 
 
-        self.filename = prefix + '_' + datetime.datetime.now().strftime('%m-%d_%H-%M')\
-                 + '.log'
+        self.filename = ''.join(['log/', 
+                                 '_'.join([prefix,
+                                           datetime.datetime.now().strftime('%m-%d_%H-%M')]),
+                                 '.log'])
         self.header += [header, datetime.datetime.now().strftime("%c") + '\n']
         """writes header"""
         file = open(self.filename, 'w')

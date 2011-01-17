@@ -59,24 +59,28 @@ supports only the http protocol. Exiting now ..."""])
 
         # __rp is the nice robot taking care of the webmaster directives
         self.__rp = robotparser.RobotFileParser()
-        # set the domain of the 
+
+        # sets the current domain, and calls the robot initialization function
         self.__current_root = split_url.scheme + '://'\
                 + split_url.netloc + '/'
-        self.change_domain(self.__current_root)
+        new_rules = self.change_domain(self.__current_root)
         if self.logging:
+            self.__logger_instance.log_event('New rules found on %s' %
+                                                 self.__current_root,
+                                                 new_rules)
             self.__logger_instance.log_short_message('Crawler initialized')
-
-        self.__page_processor = PageProcessor(self.__logger_instance if
-                                              self.logging else None)
 
 
     def change_domain(self, domain):
-        """Sets the domain of the current request in order to use the robots
-        directives. Returns the new rules as stream."""
+        """Function to retrieve the content of the robots rules for the domain
+        given as parameter. Returns the new rules as stream."""
         robots_url = urlparse.urljoin(domain, 'robots.txt')
         try:
             self.__rp.set_url(urlparse.urljoin(domain, 'robots.txt'))
             self.__rp.read() # parses the content of the directives
+            # the rules are now in memory, we could stop here
+
+            # returns the content of the file for logging purpose
             return urllib2.urlopen(robots_url)
 
         except HTTPError, e:
@@ -131,6 +135,8 @@ supports only the http protocol. Exiting now ..."""])
         while (i < 100):
             time.sleep(1) # waits 1s at each step
             i += 1
+
+            # takes one url from the queue
             current_url = url_to_visit.get()
 
             if (current_url in self.__url_visited):
@@ -140,6 +146,7 @@ supports only the http protocol. Exiting now ..."""])
 
             self.__logger_instance.log_short_message('%s is current' %
                                                      current_url)
+
             split_url = urlparse.urlparse(current_url)
             new_root = split_url.scheme + '://' + split_url.netloc + '/'
 
@@ -167,12 +174,13 @@ supports only the http protocol. Exiting now ..."""])
             self.__page_workers.append(worker)
             worker.start()
 
+        # end of execution
         for worker in self.__page_workers:
             # waits for all threads to finish
             if (worker.is_alive() and self.logging):
                 self.__logger_instance.log_short_message('%s is still alive' %
                                                          worker.name)
-            worker.join()
+            worker.join() # waits for the worker to finish
 
 
 

@@ -91,10 +91,6 @@ supports only the http protocol. Exiting now ..."""])
         """Fetches the url given as input and returns the page. Returns an empty
         string when an exception occured.
         """
-        # checks the url against the robots.txt directives
-        if (not self.__rp.can_fetch("*", url)): 
-            self.__logger_instance.log_event('robot non authorized', [url])
-            return ''
 
         html = ''
         try:
@@ -147,14 +143,20 @@ supports only the http protocol. Exiting now ..."""])
             # the new domain
             if (new_root != self.__current_root):
                 self.__logger_instance.log_short_message("""Changing domain to\
- %s""" % new_root)
+%s""" % new_root)
                 self.__current_root = new_root
                 new_rules = self.change_domain(self.__current_root)
                 self.__logger_instance.log_event('New rules found on %s' %
                                                  self.__current_root,
                                                  new_rules)
 
+            # checks the url against the robots.txt directives
+            if (not self.__rp.can_fetch(self.__user_agent, url)): 
+                self.__logger_instance.log_event('robot non authorized', [url])
+                continue
+
             page = self.fetch_page(current_url)
+	    
             if (page == ''): # page is empty, no need to do anything with it
                 continue
 

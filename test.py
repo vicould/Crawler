@@ -45,7 +45,12 @@ class PageProcessorTest(unittest.TestCase):
 
 
     def test_no_keywords(self):
-        self.assertFalse(self.processor.get_header_keywords(''))
+        self.assertEqual(self.processor.get_header_keywords(''), None)
+
+    
+    def test_none_keyword(self):
+        test_page = '<meta name="keywords" content="None" />'
+        self.assertEqual(self.processor.get_header_keywords(test_page), None)
 
 
     def test_add_links(self):

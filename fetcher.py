@@ -11,10 +11,15 @@ import robotparser
 import re
 import time
 import mimetypes
-from Queue import Queue
+from Queue import Queue, Empty
+import threading
 
 # modules from the project
 from logger import Logger
+
+url_to_visit = Queue()
+html_pool = Queue()
+
 
 class Crawler:
     """The class responsible for the crawling feature. After initializing the
@@ -28,16 +33,16 @@ class Crawler:
     """
     __user_agent = 'DummyCrawler'
     __headers = { 'User_Agent' : __user_agent }
-    __url_to_visit = Queue()
     __url_visited = []
     __current_root = ''
+    __page_workers = []
 
 
     def __init__(self, base_url, logging=False):
         """Init the crawler with the base url of the indexing. It also sets the
         gentle robot directives parser, in order to start crawling directly
         after the initialization."""
-        self.__url_to_visit.put_nowait(base_url) # start url
+        url_to_visit.put(base_url) # start url
 
         self.logging = logging
         if self.logging:
@@ -116,17 +121,17 @@ supports only the http protocol. Exiting now ..."""])
 
 
     def get_links_to_visit(self):
-        return self.__url_to_visit
+        return url_to_visit
 
 
-    def run(self):
+    def crawl(self):
         """Call this if you want the crawler to do all his stuff without you."""
         i = 0
         # limiting the trip of the crawler
-        while (i < 100 and not self.__url_to_visit.empty()):
+        while (i < 100):
             time.sleep(1) # waits 1s at each step
             i += 1
-            current_url = self.__url_to_visit.get()
+            current_url = url_to_visit.get()
 
             if (current_url in self.__url_visited):
                 # url was already visited once
@@ -141,6 +146,8 @@ supports only the http protocol. Exiting now ..."""])
             # domain is changing, we need to fetch the robots directives from
             # the new domain
             if (new_root != self.__current_root):
+                self.__logger_instance.log_short_message("""Changing domain to\
+ %s""" % new_root)
                 self.__current_root = new_root
                 new_rules = self.change_domain(self.__current_root)
                 self.__logger_instance.log_event('New rules found on %s' %
@@ -151,30 +158,31 @@ supports only the http protocol. Exiting now ..."""])
             if (page == ''): # page is empty, no need to do anything with it
                 continue
 
+            html_pool.put((current_url, page)) # put the page in the pool
+
             self.__url_visited.append(current_url)
 
             # start here a new PageProcessor thread
-            links = self.__page_processor.add_links(page, current_url)
-            for link in links:
-                # avoids duplicates, and already visited links
-                if (link not in self.__url_visited):
-                    self.__url_to_visit.put(link)
+            worker = PageProcessor(name=current_url)
+            self.__page_workers.append(worker)
+            worker.start()
 
-            self.__logger_instance.log_event('New links found on %s' %
-                                             current_url, links)
-
-            keywords = self.__page_processor.get_header_keywords(page)
-            if (keywords is not None):
-                self.__logger_instance.log_event('New keywords found on %s' %
-                                                 current_url, keywords)
+        for worker in self.__page_workers:
+            # waits for all threads to finish
+            if (worker.is_alive() and self.logging):
+                self.__logger_instance.log_short_message('%s is still alive' %
+                                                         worker.name)
+            worker.join()
 
 
 
-
-class PageProcessor:
+class PageProcessor(threading.Thread):
     """Worker for a html page, in order to retrieve the keywords from it and
     score its incoming links"""
-    def __init__(self, logging_instance=None):
+    def __init__(self, group=None, target=None, name=None, *args, **kwargs):
+        threading.Thread.__init__(self, name=name, args=args, kwargs=kwargs)
+
+        logging_instance = kwargs.get('logging_instance')
         self.logging = bool(logging_instance)
         if self.logging:
             self.__logger_instance = logging_instance
@@ -189,7 +197,7 @@ class PageProcessor:
         for content in raw_keywords:
             keywords.extend(content.split(', '))
 
-        if (keywords.__len__() > 0 and keywords[0] == 'None'):
+        if (keywords.__len__() == 0 or keywords.__len__() > 0 and keywords[0] == 'None'):
             return None
 
         return keywords
@@ -237,9 +245,23 @@ containing a file of type %s""" % (link, url_type))
                 continue
 
             new_links.append(link)
+            url_to_visit.put(link)
 
 
         return new_links
+
+
+    def run(self):
+        try:
+            # gets a page from the queue
+            url, html = html_pool.get_nowait()
+
+            # runs only 
+            if (url != None and html != None):
+                links = self.add_links(html, url)
+                keywords = self.get_header_keywords(html)
+        except Empty:
+            pass
 
 
 
@@ -249,5 +271,5 @@ if __name__ == '__main__':
         sys.exit(1)
     base_url = sys.argv[1]
     crawler = Crawler(base_url, True)
-    crawler.run()
+    crawler.crawl()
 

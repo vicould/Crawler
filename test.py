@@ -78,6 +78,11 @@ class PageProcessorTest(unittest.TestCase):
                          ['http://localhost/~Ludo/python/library'])
 
 
+    def test_clean_page(self):
+        test_page = '<html><body><p>Lorem Ipsum</p></body></html>'
+        self.assertEqual(self.processor.remove_tags(test_page), 'Lorem Ipsum')
+
+
 
 class LoggerTest(unittest.TestCase):
     def setUp(self):

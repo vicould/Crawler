@@ -2,5 +2,8 @@ TODO :
 ______
 
  * Improve logging : wrap lines ?
- * Sort the list of urls containing the url to visit
  * Process the page (remove tags, get anchors name)
+ * Work also with proxies
+ * Restore basic logging functions disappeared because of threading
+ * Define an export format (csv ?) in order to be able to recreate a web page from a given link.
+

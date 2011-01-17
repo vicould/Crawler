@@ -13,6 +13,7 @@ import time
 import mimetypes
 from Queue import Queue, Empty
 import threading
+import nltk
 
 # modules from the project
 from logger import Logger
@@ -38,7 +39,7 @@ class Crawler:
     __page_workers = []
 
 
-    def __init__(self, base_url, logging=False):
+    def __init__(self, base_url, logging=False, keywords=None):
         """Init the crawler with the base url of the indexing. It also sets the
         gentle robot directives parser, in order to start crawling directly
         after the initialization."""
@@ -215,7 +216,8 @@ class PageProcessor(threading.Thread):
 
     def remove_tags(self, html_page):
         """Removes all the tags in the html page"""
-        pass
+        cleaned_page = nltk.clean_html(html_page)
+        return cleaned_page
 
 
     def add_links(self, html_page, base_url):
@@ -276,10 +278,8 @@ containing a file of type %s""" % (link, url_type))
 
 
 if __name__ == '__main__':
-    if (sys.argv.__len__() < 2):
-        print 'Enter entry point url as argument'
-        sys.exit(1)
-    base_url = sys.argv[1]
-    crawler = Crawler(base_url, True)
+    keywords = raw_input('Enter keywords for the crawler\n-->')
+    start_url = raw_input('Enter start url\n-->')
+    crawler = Crawler(base_url=start_url, logging=True, keywords=keywords)
     crawler.crawl()
 

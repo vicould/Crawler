@@ -44,6 +44,10 @@ class PageProcessorTest(unittest.TestCase):
                          ['python', 'crawler', 'test'])
 
 
+    def test_no_keywords(self):
+        self.assertFalse(self.processor.get_header_keywords(''))
+
+
     def test_add_links(self):
         test_page = '<a href="http://www.google.fr"></a>'
         self.assertEqual(self.processor.add_links(test_page, ''),
@@ -95,7 +99,15 @@ class LoggerTest(unittest.TestCase):
 
 
     def test_none_event(self):
-        self.assertTrue(self.logger.log_event('test', None))
+        self.assertFalse(self.logger.log_event('test', None))
+
+
+    def test_empty_event(self):
+        self.assertFalse(self.logger.log_event('test', []))
+
+
+    def test_event(self):
+        self.assertTrue(self.logger.log_event('test', ['dummy event']))
 
 
 if __name__ == '__main__':

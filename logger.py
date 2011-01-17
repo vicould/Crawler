@@ -38,12 +38,14 @@ class Logger:
         """Writes an event occuring to the current log file. 
         event_name is written, and then the description of the event is added.
         Event should be an iterable."""
-        if event is None:
-            return
+        if event is None or (hasattr(event, '__len__') and
+                             event.__len__() == 0):
+            return False
         file = open(self.filename, 'a')
         file.write(datetime.datetime.now().strftime("%c") + ' ' + event_name + ':\n')
         for line in event:
             file.write('    ' + line)
         file.write('\n\n')
         file.close()
+        return True
 

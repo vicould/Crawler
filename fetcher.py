@@ -29,7 +29,7 @@ class Crawler:
     __user_agent = 'DummyCrawler'
     __headers = { 'User_Agent' : __user_agent }
     __url_to_visit = Queue()
-    __url_visited = set([])
+    __url_visited = []
     __current_root = ''
 
 
@@ -86,7 +86,7 @@ supports only the http protocol. Exiting now ..."""])
         """Fetches the url given as input and returns the page. Returns an empty
         string when an exception occured.
         """
-        # checks the robots.txt directives
+        # checks the url against the robots.txt directives
         if (not self.__rp.can_fetch("*", url)): 
             self.__logger_instance.log_event('robot non authorized', [url])
             return ''
@@ -94,9 +94,7 @@ supports only the http protocol. Exiting now ..."""])
         html = ''
         try:
             # builds the request
-            values = {}
-            data = urllib.urlencode(values)
-            req = urllib2.Request(url, data, self.__headers)
+            req = urllib2.Request(url, headers=self.__headers)
 
             # opens the page
             response = urllib2.urlopen(req)
@@ -113,15 +111,6 @@ supports only the http protocol. Exiting now ..."""])
         return html
 
 
-    def get_keywords(self, html_page):
-        """Looks for keywords in the page meta tag, and returns them"""
-        keyword_re = re.compile(r'<meta\sname=[\'|"]keywords[\'|"]\s' 
-                                + r'content=[\'|"](.*?)[\'|"].*>')
-        keywords = keyword_re.findall(html_page)
-
-        return keywords
-
-
     def get_visited_links(self):
         return self.__url_visited
 
@@ -136,9 +125,16 @@ supports only the http protocol. Exiting now ..."""])
         # limiting the trip of the crawler
         while (i < 100 and not self.__url_to_visit.empty()):
             time.sleep(1) # waits 1s at each step
-            i = i + 1
+            i += 1
             current_url = self.__url_to_visit.get()
-            print current_url + ' is current'
+
+            if (current_url in self.__url_visited):
+                # url was already visited once
+                i -= 1
+                continue
+
+            self.__logger_instance.log_short_message('%s is current' %
+                                                     current_url)
             split_url = urlparse.urlparse(current_url)
             new_root = split_url.scheme + '://' + split_url.netloc + '/'
 
@@ -155,7 +151,7 @@ supports only the http protocol. Exiting now ..."""])
             if (page == ''): # page is empty, no need to do anything with it
                 continue
 
-            self.__url_visited.add(current_url)
+            self.__url_visited.append(current_url)
 
             # start here a new PageProcessor thread
             links = self.__page_processor.add_links(page, current_url)
@@ -168,8 +164,9 @@ supports only the http protocol. Exiting now ..."""])
                                              current_url, links)
 
             keywords = self.__page_processor.get_header_keywords(page)
-            self.__logger_instance.log_event('New keywords found on %s' %
-                                             current_url, keywords)
+            if (keywords is not None):
+                self.__logger_instance.log_event('New keywords found on %s' %
+                                                 current_url, keywords)
 
 
 
@@ -191,6 +188,9 @@ class PageProcessor:
         keywords = []
         for content in raw_keywords:
             keywords.extend(content.split(', '))
+
+        if (keywords.__len__() > 0 and keywords[0] == 'None'):
+            return None
 
         return keywords
 

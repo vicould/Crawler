@@ -1,6 +1,14 @@
 # -*- coding: utf-8 -*-
 import datetime
 import os
+import logging
+
+
+
+class NullHandler(logging.Handler):
+    def render(self, record):
+        pass
+
 
 class Logger:
     """Logger class, receiving two types of events to log"""

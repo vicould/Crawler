@@ -2,21 +2,23 @@
 # -*- coding: utf-8 -*-
 
 # libs
+import datetime
+import logging
+import mimetypes
+import nltk
+import os
+from Queue import Queue, Empty
+import re
+import robotparser
 import sys
+import threading
+import time
 import urllib
 import urllib2
 from urllib2 import URLError, HTTPError
 import urlparse
-import robotparser
-import re
-import time
-import mimetypes
-from Queue import Queue, Empty
-import threading
-import nltk
 
-# modules from the project
-from logger import Logger
+
 
 url_to_visit = Queue()
 html_pool = Queue()
@@ -40,24 +42,27 @@ class Crawler:
     __page_workers = []
 
 
-    def __init__(self, base_url, logging=False, keywords=None):
+    def __init__(self, base_url, log=False, keywords=None):
         """Init the crawler with the base url of the indexing. It also sets the
         gentle robot directives parser, in order to start crawling directly
         after the initialization."""
+        self.starttime = datetime.datetime.now()
+        self.log = log
+        if logging:
+            self.__init_logger()
+            logging.info('Starting crawler')
+
         for url in base_url:
             url_to_visit.put(url) # start url
+            if logging:
+                logging.info(url)
 
-        self.logging = logging
-        if self.logging:
-            self.__logger_instance = Logger('crawler',
-                                           """Initializing dummy crawler.\n""")
-
-        # cuts the url in standart parts
+        # cuts the url in standard parts
         split_url = urlparse.urlparse(base_url[0])
-        if (split_url.scheme != 'http'):
-            if self.logging:
-                self.__logger_instance.log_event('Exiting', ["""sorry this crawler \
-supports only the http protocol. Exiting now ..."""])
+        if (not split_url.scheme.startswith('http')):
+            if logging:
+                logging.critical('This crawler only supports the http\
+ and https protocol, exiting')
             sys.exit(1)
 
         # __rp is the nice robot taking care of the webmaster directives
@@ -67,11 +72,32 @@ supports only the http protocol. Exiting now ..."""])
         self.__current_root = split_url.scheme + '://'\
                 + split_url.netloc + '/'
         new_rules = self.change_domain(self.__current_root)
-        if self.logging:
-            self.__logger_instance.log_event('New rules found on %s' %
-                                                 self.__current_root,
-                                                 new_rules)
-            self.__logger_instance.log_short_message('Crawler initialized')
+        if logging:
+            logging.info('End of initialization')
+            logging.info('****    ****')
+
+
+    def __init_logger(self):
+        """Inits the logger used internally, calling a few utilities to handle
+        events, write them properly etc.
+        Should be called at the beginning of the constructor, logger is used
+        widely if activated."""
+        try:
+            if (self.__logger_initialized):
+                pass
+        except NameError:
+            try:
+                os.listdir(os.path.join(os.getcwd(), 'log'))
+            except OSError, err:
+                if err.errno == 2:
+                    os.mkdir('log', 0755)
+                    print 'Created log dir with mode 755'
+
+            name = ''.join(['log/', '_'.join(['crawler', \
+    datetime.datetime.now().strftime('%m-%d_%H-%M')]), '.log'])
+            logging.basicConfig(filename=name, level=logging.DEBUG)
+            logging.info('Logger initialized')
+            self.__logger_initialized = True
 
 
     def change_domain(self, domain):
@@ -82,16 +108,22 @@ supports only the http protocol. Exiting now ..."""])
             self.__rp.set_url(urlparse.urljoin(domain, 'robots.txt'))
             self.__rp.read() # parses the content of the directives
             # the rules are now in memory, we could stop here
+            rules = urllib2.urlopen(robots_url).readlines()
+
+            if self.log:
+                logging.info('New rules found on %s' % domain)
+                for rule in rules:
+                    logging.info(''.join(['    ', rule[:rule.__len__()-1]]))
 
             # returns the content of the file for logging purpose
-            return urllib2.urlopen(robots_url)
+            return rules
 
-        except HTTPError, e:
-            self.__logger_instance.log_short_message('Could not get robots on '
-                                                     + domain + ' ' + str(e))
+        except HTTPError as e:
+            logging.warning('Could not get robots on %s, %s' % (domain,
+                                                                e.code))
         except URLError, e:
-            self.__logger_instance.log_short_message('Could not get robots on '
-                                                     + domain + ' ' + str(e))
+            logging.warning('Could not get robots on %s, %s' % (domain,
+                                                                e.reason))
 
 
     def fetch_page(self, url):
@@ -111,10 +143,9 @@ supports only the http protocol. Exiting now ..."""])
             if (response.info().gettype() == 'text/html'):
                 html = response.read()
         except HTTPError, he:
-            self.__logger_instance.log_event('HTTPError', [str(he.code) + ' ',
-                                                           he.read()])
+            logging.warning('While fetching caught HTTPError %s' % he.code)
         except URLError, ex:
-            self.__logger_instance.log_event('URLError', [str(ex.reason)])
+            logging.warning('While fetching caught URLError %s' % ex.reason)
 
         return html
 
@@ -131,7 +162,7 @@ supports only the http protocol. Exiting now ..."""])
         """Call this if you want the crawler to do all his stuff without you."""
         i = 0
         # limiting the trip of the crawler
-        while (i < 100):
+        while (i < 10):
             time.sleep(1) # waits 1s at each step
             i += 1
 
@@ -141,10 +172,12 @@ supports only the http protocol. Exiting now ..."""])
             if (current_url in self.__url_visited):
                 # url was already visited once
                 i -= 1
+                if self.log:
+                    logging.info('%s has already been visited at least once' %
+                                 current_url)
                 continue
 
-            self.__logger_instance.log_short_message('%s is current' %
-                                                     current_url)
+            logging.info('%s is now current' % current_url)
 
             split_url = urlparse.urlparse(current_url)
             new_root = split_url.scheme + '://' + split_url.netloc + '/'
@@ -152,17 +185,15 @@ supports only the http protocol. Exiting now ..."""])
             # domain is changing, we need to fetch the robots directives from
             # the new domain
             if (new_root != self.__current_root):
-                self.__logger_instance.log_short_message("""Changing domain to\
-%s""" % new_root)
                 self.__current_root = new_root
                 new_rules = self.change_domain(self.__current_root)
-                self.__logger_instance.log_event('New rules found on %s' %
-                                                 self.__current_root,
-                                                 new_rules)
+                if self.log:
+                    logging.info('Changing domain to %s' % new_root)
 
             # checks the url against the robots.txt directives
-            if (not self.__rp.can_fetch(self.__user_agent, url)): 
-                self.__logger_instance.log_event('robot non authorized', [url])
+            if (not self.__rp.can_fetch(self.__user_agent, current_url)): 
+                if self.log:
+                    logging.info('Robot non authorized on %s' % current_url)
                 continue
 
             page = self.fetch_page(current_url)
@@ -175,17 +206,22 @@ supports only the http protocol. Exiting now ..."""])
             self.__url_visited.append(current_url)
 
             # start here a new PageProcessor thread
-            worker = PageProcessor(name=current_url)
+            worker = PageProcessor(name=current_url, log=True)
             self.__page_workers.append(worker)
             worker.start()
 
         # end of execution
         for worker in self.__page_workers:
             # waits for all threads to finish
-            if (worker.is_alive() and self.logging):
-                self.__logger_instance.log_short_message('%s is still alive' %
+            if (worker.is_alive() and self.log):
+                logging.info('%s is still alive' %
                                                          worker.name)
             worker.join() # waits for the worker to finish
+
+        if self.log:
+            logging.info('****    ****')
+            logging.info('Crawler ended normally, after %ss of execution' %
+                         str(datetime.datetime.now() - self.starttime))
 
 
 
@@ -195,10 +231,7 @@ class PageProcessor(threading.Thread):
     def __init__(self, group=None, target=None, name=None, *args, **kwargs):
         threading.Thread.__init__(self, name=name, args=args, kwargs=kwargs)
 
-        logging_instance = kwargs.get('logging_instance')
-        self.logging = bool(logging_instance)
-        if self.logging:
-            self.__logger_instance = logging_instance
+        self.log = bool(kwargs.get('log'))
 
 
     def get_header_keywords(self, page):
@@ -212,6 +245,9 @@ class PageProcessor(threading.Thread):
 
         if (keywords.__len__() == 0 or keywords.__len__() > 0 and keywords[0] == 'None'):
             return None
+
+        if self.log:
+            logging.info('Found in the header %s ' % keywords)
 
         return keywords
 
@@ -238,9 +274,9 @@ class PageProcessor(threading.Thread):
             if (url_type != None and not url_type.__contains__('text')):
                 # url points to a file containing something else than text (can
                 # be pictures, PDF files etc.)
-                if self.logging:
-                    self.__logger_instance.log_short_message("""Removed url %s
-containing a file of type %s""" % (link, url_type))
+                if self.log:
+                    logging.info("""Removed url %s containing a file of type
+%s""" % (link, url_type))
                 continue
             
             if (link.startswith('/')):
@@ -260,6 +296,8 @@ containing a file of type %s""" % (link, url_type))
 
             new_links.append(link)
             url_to_visit.put(link)
+            if self.log:
+                logging.info('Added %s to queue' % link)
 
 
         return new_links
@@ -280,14 +318,23 @@ containing a file of type %s""" % (link, url_type))
 
 
 if __name__ == '__main__':
-    print 'Welcome to the dummy python crawler.'
-    try:
-        keywords = raw_input('Enter keywords for the crawler\n--> ')
-        start_url = raw_input('Enter start urls seperated by\
-commas\n--> ').split(',')
-    except EOFError:
-        print '\nCaught EOF, exiting'
-        sys.exit(1)
-    crawler = Crawler(base_url=start_url, logging=True, keywords=keywords)
+    if (sys.argv.__len__() > 1):
+        start_url = sys.argv[1:]
+        keywords = None
+    else:
+        print 'Welcome to the dummy python crawler.'
+        try:
+            keywords = raw_input('Enter keywords for the crawler\n--> ')
+            while True:
+                start_url = raw_input('Enter start urls seperated by\
+    commas\n--> ')
+                if (start_url.__len__() > 0):
+                    break
+                print 'Please enter an url'
+        except EOFError:
+            print '\nCaught EOF, exiting'
+            sys.exit(1)
+        start_url = start_url.split(',')
+    crawler = Crawler(base_url=start_url, log=True, keywords=keywords)
     crawler.crawl()
 

@@ -6,7 +6,6 @@ import os
 import unittest
 from Queue import Empty
 
-from logger import Logger
 from fetcher import Crawler, PageProcessor
 
 
@@ -82,42 +81,6 @@ class PageProcessorTest(unittest.TestCase):
         test_page = '<html><body><p>Lorem Ipsum</p></body></html>'
         self.assertEqual(self.processor.remove_tags(test_page), 'Lorem Ipsum')
 
-
-
-class LoggerTest(unittest.TestCase):
-    def setUp(self):
-        self.header = 'header\n'
-        self.filename = ''.join(['_'.join(['prefix',
-                                           datetime.now().strftime('%m-%d_%H-%M')]),
-                                 '.log'])
-        self.log_path = os.path.join(os.getcwd(), 'log')
-        self.logger = Logger('prefix', self.header)
-
-    def tearDown(self):
-        os.remove(os.path.join(self.log_path, self.filename))
-
-
-    def test_prefix(self):
-        self.assertTrue(os.listdir(os.path.join(os.getcwd(),
-                                                'log')).__contains__(self.filename))
-
-
-    def test_header(self):
-        log_file = open(''.join(['log/', self.filename]))
-        self.assertTrue(log_file.readline(), self.header)
-        log_file.close()
-
-
-    def test_none_event(self):
-        self.assertFalse(self.logger.log_event('test', None))
-
-
-    def test_empty_event(self):
-        self.assertFalse(self.logger.log_event('test', []))
-
-
-    def test_event(self):
-        self.assertTrue(self.logger.log_event('test', ['dummy event']))
 
 
 if __name__ == '__main__':

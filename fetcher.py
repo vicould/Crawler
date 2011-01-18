@@ -18,6 +18,8 @@ import urllib2
 from urllib2 import URLError, HTTPError
 import urlparse
 
+# local modules
+import logger
 
 
 url_to_visit = Queue()
@@ -35,11 +37,11 @@ class Crawler:
     The crawler is width-first, visiting all links from one level before going
     anywhere deeper.
     """
-    __user_agent = 'DummyCrawler'
-    __headers = { 'User_Agent' : __user_agent }
-    __url_visited = []
-    __current_root = ''
-    __page_workers = []
+    _user_agent = 'DummyCrawler'
+    _headers = { 'User_Agent' : _user_agent }
+    _url_visited = []
+    _current_root = ''
+    _page_workers = []
 
 
     def __init__(self, base_url, log=False, keywords=None):
@@ -48,33 +50,29 @@ class Crawler:
         after the initialization."""
         self.starttime = datetime.datetime.now()
         self.log = log
-        if logging:
-            self.__init_logger()
-            logging.info('Starting crawler')
+        self.__init_logger()
+        logging.getLogger('fetcher.Crawler').info('Starting crawler')
 
         for url in base_url:
             url_to_visit.put(url) # start url
-            if logging:
-                logging.info(url)
+            logging.getLogger('fetcher.Crawler').info(url)
 
         # cuts the url in standard parts
         split_url = urlparse.urlparse(base_url[0])
         if (not split_url.scheme.startswith('http')):
-            if logging:
-                logging.critical('This crawler only supports the http\
- and https protocol, exiting')
+            logging.getLogger('fetcher.Crawler').critical('This crawler\
+ only supports the http and https protocol, exiting')
             sys.exit(1)
 
-        # __rp is the nice robot taking care of the webmaster directives
-        self.__rp = robotparser.RobotFileParser()
+        # _rp is the nice robot taking care of the webmaster directives
+        self._rp = robotparser.RobotFileParser()
 
         # sets the current domain, and calls the robot initialization function
-        self.__current_root = split_url.scheme + '://'\
+        self._current_root = split_url.scheme + '://'\
                 + split_url.netloc + '/'
-        new_rules = self.change_domain(self.__current_root)
-        if logging:
-            logging.info('End of initialization')
-            logging.info('****    ****')
+        new_rules = self.change_domain(self._current_root)
+        logging.getLogger('fetcher.Crawler').info('End of initialization')
+        logging.getLogger('fetcher.Crawler').info('############')
 
 
     def __init_logger(self):
@@ -83,21 +81,32 @@ class Crawler:
         Should be called at the beginning of the constructor, logger is used
         widely if activated."""
         try:
-            if (self.__logger_initialized):
+            # just preventing from further call
+            if (self._logger_initialized):
                 pass
-        except NameError:
-            try:
-                os.listdir(os.path.join(os.getcwd(), 'log'))
-            except OSError, err:
-                if err.errno == 2:
-                    os.mkdir('log', 0755)
-                    print 'Created log dir with mode 755'
+        except AttributeError:
+            # attribute does not exist, configuring the logger
+            if (not self.log):
+                logging.basicConfig()
+                logger_inst = logging.getLogger('fetcher')
+                dh = logger.NullHandler()
+                logger_inst.addHandler(dh) # adds the dummy handler, doing nothing
+            else:
+                # tests if the log folder exists
+                try:
+                    os.listdir(os.path.join(os.getcwd(), 'log'))
+                except OSError, err:
+                    if err.errno == 2:
+                        os.mkdir('log', 0755)
+                        print 'Created log dir with mode 755'
 
-            name = ''.join(['log/', '_'.join(['crawler', \
-    datetime.datetime.now().strftime('%m-%d_%H-%M')]), '.log'])
-            logging.basicConfig(filename=name, level=logging.DEBUG)
-            logging.info('Logger initialized')
-            self.__logger_initialized = True
+                name = ''.join(['log/', '_'.join(['crawler', \
+datetime.datetime.now().strftime('%m-%d_%H-%M')]), '.log'])
+                logging.basicConfig(level=logging.DEBUG, filename=name,\
+                                    format='%(asctime)s %(name)s %(levelname)s\
+ %(message)s', datefmt='%m.%d %H:%M:%S', filemode='w')
+
+            self._logger_initialized = True
 
 
     def change_domain(self, domain):
@@ -105,36 +114,36 @@ class Crawler:
         given as parameter. Returns the new rules as stream."""
         robots_url = urlparse.urljoin(domain, 'robots.txt')
         try:
-            self.__rp.set_url(urlparse.urljoin(domain, 'robots.txt'))
-            self.__rp.read() # parses the content of the directives
+            self._rp.set_url(urlparse.urljoin(domain, 'robots.txt'))
+            self._rp.read() # parses the content of the directives
             # the rules are now in memory, we could stop here
             rules = urllib2.urlopen(robots_url).readlines()
 
-            if self.log:
-                logging.info('New rules found on %s' % domain)
-                for rule in rules:
-                    logging.info(''.join(['    ', rule[:rule.__len__()-1]]))
+            logging.getLogger('fetcher.Crawler').info('New rules found\
+on %s' % domain)
+            for rule in rules:
+                logging.getLogger('fetcher.Crawler').\
+info(''.join(['    ', rule[:rule.__len__()-1]]))
 
             # returns the content of the file for logging purpose
             return rules
 
         except HTTPError as e:
-            logging.warning('Could not get robots on %s, %s' % (domain,
-                                                                e.code))
+            logging.getLogger('fetcher.Crawler').warning('Could not\
+ get robots on %s, %s' % (domain, e.code))
         except URLError, e:
-            logging.warning('Could not get robots on %s, %s' % (domain,
-                                                                e.reason))
+            logging.getLogger('fetcher.Crawler').warning('Could not\
+ get robots on %s, %s' % (domain, e.reason))
 
 
     def fetch_page(self, url):
-        """Fetches the url given as input and returns the page. Returns an empty
-        string when an exception occured.
-        """
+        """Fetches the url given as input and returns the page. Returns an
+        empty string when an exception occured."""
 
         html = ''
         try:
             # builds the request
-            req = urllib2.Request(url, headers=self.__headers)
+            req = urllib2.Request(url, headers=self._headers)
 
             # opens the page
             response = urllib2.urlopen(req)
@@ -143,15 +152,17 @@ class Crawler:
             if (response.info().gettype() == 'text/html'):
                 html = response.read()
         except HTTPError, he:
-            logging.warning('While fetching caught HTTPError %s' % he.code)
+            logging.getLogger('fetcher.Crawler').warning('While fetching\
+ caught HTTPError %s' % he.code)
         except URLError, ex:
-            logging.warning('While fetching caught URLError %s' % ex.reason)
+            logging.getLogger('fetcher.Crawler').warning('While fetching\
+ caught URLError %s' % ex.reason)
 
         return html
 
 
     def get_visited_links(self):
-        return self.__url_visited
+        return self._url_visited
 
 
     def get_links_to_visit(self):
@@ -159,7 +170,8 @@ class Crawler:
 
 
     def crawl(self):
-        """Call this if you want the crawler to do all his stuff without you."""
+        """Call this if you want the crawler to do all his stuff without
+        you."""
         i = 0
         # limiting the trip of the crawler
         while (i < 10):
@@ -169,31 +181,31 @@ class Crawler:
             # takes one url from the queue
             current_url = url_to_visit.get()
 
-            if (current_url in self.__url_visited):
+            if (current_url in self._url_visited):
                 # url was already visited once
                 i -= 1
-                if self.log:
-                    logging.info('%s has already been visited at least once' %
-                                 current_url)
+                logging.getLogger('fetcher.Crawler').info('%s has already\
+ been visited at least once' % current_url)
                 continue
 
-            logging.info('%s is now current' % current_url)
+            logging.getLogger('fetcher.Crawler').info('%s is now current' %
+                                                      current_url)
 
             split_url = urlparse.urlparse(current_url)
             new_root = split_url.scheme + '://' + split_url.netloc + '/'
 
             # domain is changing, we need to fetch the robots directives from
             # the new domain
-            if (new_root != self.__current_root):
-                self.__current_root = new_root
-                new_rules = self.change_domain(self.__current_root)
-                if self.log:
-                    logging.info('Changing domain to %s' % new_root)
+            if (new_root != self._current_root):
+                self._current_root = new_root
+                new_rules = self.change_domain(self._current_root)
+                logging.getLogger('fetcher.Crawler').info('Changing domain\
+ to %s' % new_root)
 
             # checks the url against the robots.txt directives
-            if (not self.__rp.can_fetch(self.__user_agent, current_url)): 
-                if self.log:
-                    logging.info('Robot non authorized on %s' % current_url)
+            if (not self._rp.can_fetch(self._user_agent, current_url)): 
+                logging.getLogger('fetcher.Crawler').info('Robot non\
+ authorized on %s' % current_url)
                 continue
 
             page = self.fetch_page(current_url)
@@ -203,25 +215,24 @@ class Crawler:
 
             html_pool.put((current_url, page)) # put the page in the pool
 
-            self.__url_visited.append(current_url)
+            self._url_visited.append(current_url)
 
             # start here a new PageProcessor thread
-            worker = PageProcessor(name=current_url, log=True)
-            self.__page_workers.append(worker)
+            worker = PageProcessor(name=current_url)
+            self._page_workers.append(worker)
             worker.start()
 
         # end of execution
-        for worker in self.__page_workers:
+        for worker in self._page_workers:
             # waits for all threads to finish
-            if (worker.is_alive() and self.log):
-                logging.info('%s is still alive' %
+            if (worker.is_alive()):
+                logging.getLogger('fetcher.Crawler').info('%s is still alive' %
                                                          worker.name)
             worker.join() # waits for the worker to finish
 
-        if self.log:
-            logging.info('****    ****')
-            logging.info('Crawler ended normally, after %ss of execution' %
-                         str(datetime.datetime.now() - self.starttime))
+        logging.getLogger('fetcher.Crawler').info('############')
+        logging.getLogger('fetcher.Crawler').info('Crawler ended normally,\
+ after %ss of execution' % str(datetime.datetime.now() - self.starttime))
 
 
 
@@ -230,8 +241,6 @@ class PageProcessor(threading.Thread):
     score its incoming links"""
     def __init__(self, group=None, target=None, name=None, *args, **kwargs):
         threading.Thread.__init__(self, name=name, args=args, kwargs=kwargs)
-
-        self.log = bool(kwargs.get('log'))
 
 
     def get_header_keywords(self, page):
@@ -243,11 +252,12 @@ class PageProcessor(threading.Thread):
         for content in raw_keywords:
             keywords.extend(content.split(', '))
 
-        if (keywords.__len__() == 0 or keywords.__len__() > 0 and keywords[0] == 'None'):
+        if (keywords.__len__() == 0 or 
+            keywords.__len__() > 0 and keywords[0] == 'None'):
             return None
 
-        if self.log:
-            logging.info('Found in the header %s ' % keywords)
+        logging.getLogger('fetcher.PageProcessor').info('Found in the\
+ header %s ' % keywords)
 
         return keywords
 
@@ -270,15 +280,14 @@ class PageProcessor(threading.Thread):
 
         for link in links:
             url_type,_ = mimetypes.guess_type(link)
-            
+
             if (url_type != None and not url_type.__contains__('text')):
                 # url points to a file containing something else than text (can
                 # be pictures, PDF files etc.)
-                if self.log:
-                    logging.info("""Removed url %s containing a file of type
-%s""" % (link, url_type))
+                logging.getLogger('fetcher.PageProcessor').info(\
+ 'Removed url %s containing a file of type %s' % (link, url_type))
                 continue
-            
+
             if (link.startswith('/')):
                 # add the root, the link is local
                 link = urlparse.urljoin(splitted_base.scheme + '://' +
@@ -296,8 +305,8 @@ class PageProcessor(threading.Thread):
 
             new_links.append(link)
             url_to_visit.put(link)
-            if self.log:
-                logging.info('Added %s to queue' % link)
+            logging.getLogger('fetcher.PageProcessor').info(\
+ 'Added %s to queue' % link)
 
 
         return new_links

@@ -281,9 +281,13 @@ containing a file of type %s""" % (link, url_type))
 
 if __name__ == '__main__':
     print 'Welcome to the dummy python crawler.'
-    keywords = raw_input('Enter keywords for the crawler\n-->')
-    start_url = raw_input('Enter start urls seperated by\
-commas\n-->').split(',')
+    try:
+        keywords = raw_input('Enter keywords for the crawler\n--> ')
+        start_url = raw_input('Enter start urls seperated by\
+commas\n--> ').split(',')
+    except EOFError:
+        print '\nCaught EOF, exiting'
+        sys.exit(1)
     crawler = Crawler(base_url=start_url, logging=True, keywords=keywords)
     crawler.crawl()
 

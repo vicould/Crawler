@@ -2,7 +2,7 @@ TODO :
 ______
 
  * Improve logging : wrap lines ?
- * Process the page (remove tags, get anchors name)
+ * Process the page (get anchors name)
  * Work also with proxies
  * Restore basic logging functions disappeared because of threading
  * Define an export format (csv ?) in order to be able to recreate a web page from a given link.

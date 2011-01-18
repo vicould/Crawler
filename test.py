@@ -12,8 +12,8 @@ from fetcher import Crawler, PageProcessor
 
 class CrawlerTest(unittest.TestCase):
     def setUp(self):
-        self.first_link = 'http://localhost/'
-        self.crawler = Crawler(self.first_link)
+        self.first_links = ['http://localhost/']
+        self.crawler = Crawler(self.first_links)
 
 
     def test_initial_link(self):
@@ -25,7 +25,7 @@ class CrawlerTest(unittest.TestCase):
         except Empty:
             pass
 
-        self.assertEqual(links, [self.first_link])
+        self.assertEqual(links, self.first_links)
 
 
     def test_protocol_failure(self):

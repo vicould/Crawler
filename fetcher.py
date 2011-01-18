@@ -22,6 +22,7 @@ url_to_visit = Queue()
 html_pool = Queue()
 
 
+
 class Crawler:
     """The class responsible for the crawling feature. After initializing the
     class with the first domain to interrogate, you can start the crawler in
@@ -43,7 +44,8 @@ class Crawler:
         """Init the crawler with the base url of the indexing. It also sets the
         gentle robot directives parser, in order to start crawling directly
         after the initialization."""
-        url_to_visit.put(base_url) # start url
+        for url in base_url:
+            url_to_visit.put(url) # start url
 
         self.logging = logging
         if self.logging:
@@ -51,7 +53,7 @@ class Crawler:
                                            """Initializing dummy crawler.\n""")
 
         # cuts the url in standart parts
-        split_url = urlparse.urlparse(base_url)
+        split_url = urlparse.urlparse(base_url[0])
         if (split_url.scheme != 'http'):
             if self.logging:
                 self.__logger_instance.log_event('Exiting', ["""sorry this crawler \
@@ -278,8 +280,10 @@ containing a file of type %s""" % (link, url_type))
 
 
 if __name__ == '__main__':
+    print 'Welcome to the dummy python crawler.'
     keywords = raw_input('Enter keywords for the crawler\n-->')
-    start_url = raw_input('Enter start url\n-->')
+    start_url = raw_input('Enter start urls seperated by\
+commas\n-->').split(',')
     crawler = Crawler(base_url=start_url, logging=True, keywords=keywords)
     crawler.crawl()
 

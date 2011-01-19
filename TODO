@@ -1,8 +1,10 @@
 TODO :
 ______
 
- * Improve logging : wrap lines ?
+ * Rewrite the add_links function, should not be using regex to process the page. 
+Rather use a Parser on the content, and write some handlers depending on the events.
  * Process the page (get anchors name)
+ * Introduce arguments using flags (see optparser library), and an interactive mode.
  * Work also with proxies
  * Restore basic logging functions disappeared because of threading
  * Define an export format (csv ?) in order to be able to recreate a web page from a given link.

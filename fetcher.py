@@ -153,10 +153,10 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
                 html = response.read()
         except HTTPError, he:
             logging.getLogger('fetcher.Crawler').warning('While fetching\
- %s caught HTTPError %d' % (url, he.code))
+ caught HTTPError %s' % he.code)
         except URLError, ex:
             logging.getLogger('fetcher.Crawler').warning('While fetching\
- %s caught URLError %s' % (url, ex.reason))
+ caught URLError %s' % ex.reason)
 
         return html
 
@@ -218,7 +218,7 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
             self._url_visited.append(current_url)
 
             # start here a new PageProcessor thread
-            worker = PageProcessor(name=current_url))
+            worker = PageProcessor(name=current_url)
             self._page_workers.append(worker)
             worker.start()
 
@@ -226,8 +226,8 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
         for worker in self._page_workers:
             # waits for all threads to finish
             if (worker.is_alive()):
-                logging.getLogger('fetcher.Crawler').info('Worker\
- %s is still alive' % worker.name)
+                logging.getLogger('fetcher.Crawler').info('%s is still alive' %
+                                                         worker.name)
             worker.join() # waits for the worker to finish
 
         logging.getLogger('fetcher.Crawler').info('############')

@@ -12,11 +12,14 @@ import re
 import robotparser
 import sys
 import threading
+from threading import local
 import time
 import urllib
 import urllib2
 from urllib2 import URLError, HTTPError
 import urlparse
+import xml.parsers.expat
+from xml.parsers.expat import ExpatError
 
 # local modules
 import logger
@@ -241,75 +244,116 @@ class PageProcessor(threading.Thread):
     score its incoming links"""
     def __init__(self, group=None, target=None, name=None, *args, **kwargs):
         threading.Thread.__init__(self, name=name, args=args, kwargs=kwargs)
+        self._my_data = local()
 
 
-    def get_header_keywords(self, page):
-        """Looks for keywords in the page meta tag, and returns them"""
-        keyword_re = re.compile(r'<meta\sname=[\'|"]keywords[\'|"]\s' 
-                                + r'content=[\'|"](.*?)[\'|"].*>')
-        raw_keywords = keyword_re.findall(page)
-        keywords = []
-        for content in raw_keywords:
-            keywords.extend(content.split(', '))
+    def _rebuild_link(self, link):
+        url_type,_ = mimetypes.guess_type(link)
 
-        if (keywords.__len__() == 0 or 
-            keywords.__len__() > 0 and keywords[0] == 'None'):
-            return None
+        if (url_type != None and not url_type.__contains__('text')):
+            # url points to a file containing something else than text (can
+            # be pictures, PDF files etc.)
+            logging.getLogger('fetcher.CrawlerHTMLParser').info(\
+'Removed url %s containing a file of type %s' % (link, url_type))
+            return ''
 
-        logging.getLogger('fetcher.PageProcessor').info('Found in the\
- header %s ' % keywords)
+        if (link.startswith('/')):
+            # adds the root, the link is local but absolute
+            link = urlparse.urljoin(self._my_data.splitted_url.scheme + '://' +
+                                    self._my_data.splitted_url.netloc, link)
+        elif (link.startswith('#')):
+            # adds where we are, the link is internal
+            link = urlparse.urljoin(self._my_data.base_url, link)
+        elif (not link.startswith('http')):
+            # links points from here
+            link = urlparse.urljoin(self._my_data.base_url, link)
 
-        return keywords
+        if (not link.startswith('http')):
+            # link has not the good protocol
+            return ''
 
-
-    def remove_tags(self, html_page):
-        """Removes all the tags in the html page"""
-        cleaned_page = nltk.clean_html(html_page)
-        return cleaned_page
-
-
-    def add_links(self, html_page, base_url):
-        """Searches the anchors in a html page, and recreates them using the
-        current location given as parameter."""
-        anchor_re = re.compile(r'<a\s*href=[\'|"](.*?)[\'|"].*>')
-        links = anchor_re.findall(html_page)
-
-        splitted_base = urlparse.urlparse(base_url)
-
-        new_links = []
-
-        for link in links:
-            url_type,_ = mimetypes.guess_type(link)
-
-            if (url_type != None and not url_type.__contains__('text')):
-                # url points to a file containing something else than text (can
-                # be pictures, PDF files etc.)
-                logging.getLogger('fetcher.PageProcessor').info(\
- 'Removed url %s containing a file of type %s' % (link, url_type))
-                continue
-
-            if (link.startswith('/')):
-                # add the root, the link is local
-                link = urlparse.urljoin(splitted_base.scheme + '://' +
-                                        splitted_base.netloc, link)
-            elif (link.startswith('#')):
-                # add where we are, the link is internal
-                link = urlparse.urljoin(base_url, link)
-            elif (not link.startswith('http')):
-                # huh ?
-                link = urlparse.urljoin(base_url, link)
-
-            if (not link.startswith('http')):
-                # link has not the good protocol
-                continue
-
-            new_links.append(link)
-            url_to_visit.put(link)
-            logging.getLogger('fetcher.PageProcessor').info(\
- 'Added %s to queue' % link)
+        url_to_visit.put(link)
+        logging.getLogger('fetcher.CrawlerHTMLParser').info('Added %s to queue'
+                                                            % link)
+        return link
 
 
-        return new_links
+    def _handle_start_element(self, name, attrs):
+        if (name == 'a'):
+            # link
+            self._my_data.is_anchor = True
+            self._my_data.anchor_data = ''
+            try:
+                link = attrs['href']
+                self._my_data.current_link = self._rebuild_link(link)
+                # we'll be storing later a tuple of anchors and corresponding link
+                self._my_data.links_list.append(link)
+            except KeyError:
+                logging.getLogger('fetcher.CrawlerHTMLParser').warning('Whut ?\
+ anchor without any link ?')
+
+        if (name == 'meta'):
+            try:
+                if (attrs.get('name') == 'keywords'):
+                    self._my_data.keywords = attrs['content'].split(', ')
+                    if ('None' in self._my_data.keywords and
+                        self._my_data.keywords.__len__() == 1):
+                        # none keyword, should not be added
+                        self._my_data.keywords = []
+                    else:
+                        logging.getLogger('fetcher.CrawlerHTMLParser').info(\
+'Found %s in the header' % self._my_data.keywords)
+            except KeyError:
+                pass
+
+
+    def _handle_end_element(self, name):
+        if (name == 'a'):
+            self._my_data.is_anchor = False
+            self._my_data.anchors_list.append((self._my_data.current_link, self._my_data.anchor_data))
+
+
+    def _handle_data(self, data):
+        if (self._my_data.is_anchor):
+            # we are in the middle of an anchor, save the data
+            ''.join([self._my_data.anchor_data, data])
+        self._my_data.text_content = ''.join([self._my_data.text_content, data])
+
+
+    def _parse(self, base_url, html_page):
+        """Parses an html page and returns a huge data_structure:
+            * a tuple containing as first item the keywords found in the header
+            of the page inside the meta name="keywords" element
+            * the list of anchors found in the page (in fact a list of tuple
+            with the link as first value and the anchor's data in the
+            second position)
+            * the list of the links found in the page
+            * the content of the page without the html tags.
+            """
+        self._my_data.base_url = base_url
+        self._my_data.splitted_url = urlparse.urlparse(base_url)
+        self._my_data.is_anchor = False
+        self._my_data.anchors_list = []
+        self._my_data.links_list = []
+        self._my_data.text_content = ''
+        self._my_data.keywords = []
+
+        self._parser = xml.parsers.expat.ParserCreate()
+        self._parser.StartElementHandler = self._handle_start_element
+        self._parser.EndElementHandler = self._handle_end_element
+        self._parser.CharacterDataHandler = self._handle_data
+        
+        for line in html_page.splitlines(True):
+            try:
+                self._parser.Parse(line)
+            except ExpatError as e:
+                logging.getLogger('fetcher.PageProcessor').warn('ExpatError %d\
+ line %d colon %d in %s' % (e.code, e.lineno, e.offset, base_url))
+        # last call to the parser as requested by the doc
+        self._parser.Parse('', True)
+            
+        return (self._my_data.keywords, self._my_data.anchors_list,
+                self._my_data.links_list, self._my_data.text_content)
 
 
     def run(self):
@@ -319,12 +363,12 @@ class PageProcessor(threading.Thread):
 
             # runs only 
             if (url != None and html != None):
-                links = self.add_links(html, url)
-                keywords = self.get_header_keywords(html)
+               self._parse(url, html) 
+
         except Empty:
             pass
 
-
+    
 
 if __name__ == '__main__':
     if (sys.argv.__len__() > 1):

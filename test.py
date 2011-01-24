@@ -32,54 +32,30 @@ class CrawlerTest(unittest.TestCase):
 
 
 
-class PageProcessorTest(unittest.TestCase):
+class PageProcessor_test(unittest.TestCase):
     def setUp(self):
-        self.processor = PageProcessor()
+        self.parser = PageProcessor()
 
 
-    def test_keywords(self):
-        test_page = '<meta name="keywords" content="python, crawler, test" />'
-        self.assertEqual(self.processor.get_header_keywords(test_page), 
-                         ['python', 'crawler', 'test'])
+    def test_keyword(self):
+        test_page = '<html><head><meta name="keywords" content="test, bla,\
+ python" /></head></html>'
+        keywords,_,_,_ = self.parser._parse('http://localhost', test_page)
+        self.assertEqual(keywords, ['test', 'bla', 'python'])
 
 
-    def test_no_keywords(self):
-        self.assertEqual(self.processor.get_header_keywords(''), None)
-
-    
     def test_none_keyword(self):
-        test_page = '<meta name="keywords" content="None" />'
-        self.assertEqual(self.processor.get_header_keywords(test_page), None)
+        test_page = '<html><head><meta name="keywords"\
+ content="None" /></head></html>'
+        keywords,_,_,_ = self.parser._parse('http://localhost', test_page)
+        self.assertEqual(keywords, [])
 
 
-    def test_add_links(self):
-        test_page = '<a href="http://www.google.fr"></a>'
-        self.assertEqual(self.processor.add_links(test_page, ''),
-                         ['http://www.google.fr'])
-
-    def test_add_links_local(self):
-        test_page = '<a href="/python"></a>'
-        self.assertEqual(self.processor.add_links(test_page,
-                                                  'http://localhost/~Ludo/'),
-                         ['http://localhost/python'])
-
-    def test_add_links_internal(self):
-        test_page = '<a href="#set"></a>'
-        self.assertEqual(self.processor.add_links(test_page,
-                                                  'http://localhost/~Ludo/python/index.html'),
-                         ['http://localhost/~Ludo/python/index.html#set'])
-
-
-    def test_add_links_relative(self):
-        test_page = '<a href="library"></a>'
-        self.assertEqual(self.processor.add_links(test_page,
-                                                  'http://localhost/~Ludo/python/'),
-                         ['http://localhost/~Ludo/python/library'])
-
-
-    def test_clean_page(self):
-        test_page = '<html><body><p>Lorem Ipsum</p></body></html>'
-        self.assertEqual(self.processor.remove_tags(test_page), 'Lorem Ipsum')
+    def test_link(self):
+        test_page = u'<html><head><title>Test</title></head><body><a href="/local" />\
+ </body></html>'
+        _,_,links,_ = self.parser._parse('http://localhost', test_page)
+        self.assertEqual(links, ['/local'])
 
 
 

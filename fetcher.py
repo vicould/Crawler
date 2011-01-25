@@ -29,7 +29,6 @@ url_to_visit = Queue()
 html_pool = Queue()
 
 
-
 class Crawler:
     """The class responsible for the crawling feature. After initializing the
     class with the first domain to interrogate, you can start the crawler in
@@ -154,6 +153,7 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
             # is not really useful.
             if (response.info().gettype() == 'text/html'):
                 html = response.read()
+                logging.getLogger('fetcher.Crawler').info('Page fetched')
         except HTTPError, he:
             logging.getLogger('fetcher.Crawler').warning('While fetching\
  caught HTTPError %s' % he.code)
@@ -216,24 +216,17 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
             if (page == ''): # page is empty, no need to do anything with it
                 continue
 
-            html_pool.put((current_url, page)) # put the page in the pool
-
+            # feeds the pool with data, in order to make the processors work
+            html_pool.put((current_url, page))
             self._url_visited.append(current_url)
-
-            # start here a new PageProcessor thread
-            worker = PageProcessor(name=current_url)
-            self._page_workers.append(worker)
-            worker.start()
 
             url_to_visit.task_done()
 
         # end of execution
-        for worker in self._page_workers:
-            # waits for all threads to finish
-            if (worker.is_alive()):
-                logging.getLogger('fetcher.Crawler').info('%s is still alive' %
-                                                         worker.name)
-            worker.join() # waits for the worker to finish
+        if (not html_pool.empty()):
+            logging.getLogger('fetcher.Crawler').info('Waiting for processors\
+to finish their work')
+            html_pool.join()
 
         logging.getLogger('fetcher.Crawler').info('############')
         logging.getLogger('fetcher.Crawler').info('Crawler ended normally,\
@@ -274,9 +267,9 @@ class PageProcessor(threading.Thread):
             # link has not the good protocol
             return ''
 
-        url_to_visit.put(link)
         logging.getLogger('fetcher.CrawlerHTMLParser').info('Added %s to queue'
                                                             % link)
+        url_to_visit.put(link)
         return link
 
 
@@ -348,11 +341,11 @@ class PageProcessor(threading.Thread):
         for line in html_page.splitlines(True):
             try:
                 self._parser.Parse(line)
+                self._parser.Parse('', True)
             except ExpatError as e:
                 logging.getLogger('fetcher.PageProcessor').warn('ExpatError %d\
  line %d colon %d in %s' % (e.code, e.lineno, e.offset, base_url))
         # last call to the parser as requested by the doc
-        self._parser.Parse('', True)
             
         return (self._my_data.keywords, self._my_data.anchors_list,
                 self._my_data.links_list, self._my_data.text_content)
@@ -360,14 +353,15 @@ class PageProcessor(threading.Thread):
 
     def run(self):
         try:
-            # gets a page from the queue
-            url, html = html_pool.get_nowait()
+            while True:
+                # gets a page from the queue
+                url, html = html_pool.get()
 
-            # runs only 
-            if (url != None and html != None):
-               self._parse(url, html) 
+                # runs only 
+                if (url != None and html != None):
+                   self._parse(url, html) 
 
-            html_pool.task_done()
+                html_pool.task_done()
 
         except Empty:
             pass
@@ -392,6 +386,11 @@ if __name__ == '__main__':
             print '\nCaught EOF, exiting'
             sys.exit(1)
         start_url = start_url.split(',')
+    for i in range(5):
+        p = PageProcessor()
+        p.daemon = True
+        p.start()
+
     crawler = Crawler(base_url=start_url, log=True, keywords=keywords)
     crawler.crawl()
 

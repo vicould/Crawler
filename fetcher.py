@@ -225,6 +225,8 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
             self._page_workers.append(worker)
             worker.start()
 
+            url_to_visit.task_done()
+
         # end of execution
         for worker in self._page_workers:
             # waits for all threads to finish
@@ -364,6 +366,8 @@ class PageProcessor(threading.Thread):
             # runs only 
             if (url != None and html != None):
                self._parse(url, html) 
+
+            html_pool.task_done()
 
         except Empty:
             pass

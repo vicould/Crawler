@@ -36,7 +36,7 @@ class CrawlerTest(unittest.TestCase):
 class PageProcessor_test(unittest.TestCase):
     def setUp(self):
         self.parser = PageProcessor()
-        self.parser._theme = ['Lorem', 'Ipsum']
+        self.parser._theme = ['lorem', 'ipsum']
         self.parser._my_data.base_url = "http://www.test.fr"
 
 
@@ -62,7 +62,7 @@ class PageProcessor_test(unittest.TestCase):
 
 
     def test_calculate_score(self):
-        test_page = '<html><body><p>Lorem Ipsum pouet</p></body></html>'
+        test_page = '<html><body><p>Lorem Ipsum</p></body></html>'
         self.assertEqual(self.parser.calculate_score(test_page),1)
 
     def test_calculate_score2(self):

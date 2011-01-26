@@ -7,6 +7,7 @@ import unittest
 from Queue import Empty
 
 from fetcher import Crawler, PageProcessor
+from data_utils import SortedQueue
 
 
 class CrawlerTest(unittest.TestCase):
@@ -28,7 +29,7 @@ class CrawlerTest(unittest.TestCase):
 
 
     def test_protocol_failure(self):
-        self.assertRaises(SystemExit, Crawler, 'ftp://localhost')
+        self.assertRaises(SystemExit, Crawler, ['ftp://localhost'])
 
 
 
@@ -56,6 +57,37 @@ class PageProcessor_test(unittest.TestCase):
  </body></html>'
         _,_,links,_ = self.parser._parse('http://localhost', test_page)
         self.assertEqual(links, ['/local'])
+
+
+
+class SortedQueue_test(unittest.TestCase):
+    def setUp(self):
+        self.sorted_queue = SortedQueue()
+
+
+    def test_put_in_sorted_queue(self):
+        self.sorted_queue.put('obj')
+        self.assertEqual(self.sorted_queue.get(), 'obj')
+
+
+    # write a test to check that the elements are really sorted in the
+    # structure
+    def test_queue_is_sorted(self):
+        values = ['Purus', 'Ridiculus', 'Fermentum', 'Euismod', 'Sem', 'Purus',
+                 'Purus', 'Sem', 'Ridiculus', 'Sem', 'Sem', 'Sem']
+        values_ordered = ['Fermentum', 'Euismod', 'Purus', 'Sem']
+        for item in values:
+            self.sorted_queue.put(item)
+        
+        sorted_values = []
+        while True:
+            try:
+                print self.sorted_queue.qsize()
+                sorted_values.append(self.sorted_queue.get_nowait())
+            except Empty:
+                break
+
+        self.assertEqual(sorted_values, values_ordered)
 
 
 

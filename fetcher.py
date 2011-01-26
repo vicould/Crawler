@@ -22,11 +22,13 @@ import xml.parsers.expat
 from xml.parsers.expat import ExpatError
 
 # local modules
+from data_utils import SortedQueue
 import logger
 
 
-url_to_visit = Queue()
+url_to_visit = SortedQueue()
 html_pool = Queue()
+result_pool = Queue()
 
 
 class Crawler:
@@ -122,7 +124,7 @@ datetime.datetime.now().strftime('%m-%d_%H-%M')]), '.log'])
             rules = urllib2.urlopen(robots_url).readlines()
 
             logging.getLogger('fetcher.Crawler').info('New rules found\
-on %s' % domain)
+ on %s' % domain)
             for rule in rules:
                 logging.getLogger('fetcher.Crawler').\
 info(''.join(['    ', rule[:rule.__len__()-1]]))
@@ -347,6 +349,10 @@ class PageProcessor(threading.Thread):
  line %d colon %d in %s' % (e.code, e.lineno, e.offset, base_url))
         # last call to the parser as requested by the doc
             
+        result_pool.put((self._my_data.keywords, self._my_data.anchors_list,
+                self._my_data.links_list, self._my_data.text_content))
+        logging.getLogger('fetcher.PageProcessor').info('Page %s processed' %
+                                                        base_url)
         return (self._my_data.keywords, self._my_data.anchors_list,
                 self._my_data.links_list, self._my_data.text_content)
 
@@ -370,7 +376,7 @@ class PageProcessor(threading.Thread):
 
 if __name__ == '__main__':
     if (sys.argv.__len__() > 1):
-        start_url = sys.argv[1:]
+        start_url = sys.argv[1:].split(' ')
         keywords = None
     else:
         print 'Welcome to the dummy python crawler.'

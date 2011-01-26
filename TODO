@@ -1,11 +1,8 @@
 TODO :
 ______
 
- * Rewrite the add_links function, should not be using regex to process the page. 
-Rather use a Parser on the content, and write some handlers depending on the events.
- * Process the page (get anchors name)
  * Introduce arguments using flags (see optparser library), and an interactive mode.
  * Work also with proxies
- * Restore basic logging functions disappeared because of threading
  * Define an export format (csv ?) in order to be able to recreate a web page from a given link.
-
+ * threading: use a pool of threads, daemonized. Join on the queue, and the programs will exit anyway. Make the threads loop, getting elements to proceed from the data_structure.
+http://www.ibm.com/developerworks/aix/library/au-threadingpython/

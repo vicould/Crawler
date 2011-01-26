@@ -13,19 +13,23 @@ import re
 import robotparser
 import sys
 import threading
+from threading import local
 import time
 import urllib
 import urllib2
 from urllib2 import URLError, HTTPError
 import urlparse
+import xml.parsers.expat
+from xml.parsers.expat import ExpatError
 
 # local modules
+from data_utils import SortedQueue
 import logger
 
 
-url_to_visit = Queue()
+url_to_visit = SortedQueue()
 html_pool = Queue()
-
+result_pool = Queue()
 
 
 class Crawler:
@@ -52,7 +56,7 @@ class Crawler:
         after the initialization."""
         self.starttime = datetime.datetime.now()
         self.log = log
-        self.__init_logger()
+        self._init_logger()
         logging.getLogger('fetcher.Crawler').info('Starting crawler')
 
         for url in base_url:
@@ -85,7 +89,7 @@ class Crawler:
         logging.getLogger('fetcher.Crawler').info('############')
 
 
-    def __init_logger(self):
+    def _init_logger(self):
         """Inits the logger used internally, calling a few utilities to handle
         events, write them properly etc.
         Should be called at the beginning of the constructor, logger is used
@@ -130,7 +134,7 @@ datetime.datetime.now().strftime('%m-%d_%H-%M')]), '.log'])
             rules = urllib2.urlopen(robots_url).readlines()
 
             logging.getLogger('fetcher.Crawler').info('New rules found\
-on %s' % domain)
+ on %s' % domain)
             for rule in rules:
                 logging.getLogger('fetcher.Crawler').\
 info(''.join(['    ', rule[:rule.__len__()-1]]))
@@ -161,6 +165,7 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
             # is not really useful.
             if (response.info().gettype() == 'text/html'):
                 html = response.read()
+                logging.getLogger('fetcher.Crawler').info('Page fetched')
         except HTTPError, he:
             logging.getLogger('fetcher.Crawler').warning('While fetching\
  %s caught HTTPError %d' % (url, he.code))
@@ -223,22 +228,17 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
             if (page == ''): # page is empty, no need to do anything with it
                 continue
 
-            html_pool.put((current_url, page)) # put the page in the pool
-
+            # feeds the pool with data, in order to make the processors work
+            html_pool.put((current_url, page))
             self._url_visited.append(current_url)
 
-            # start here a new PageProcessor thread
-            worker = PageProcessor(name=current_url,theme=self._keywords)
-            self._page_workers.append(worker)
-            worker.start()
+            url_to_visit.task_done()
 
         # end of execution
-        for worker in self._page_workers:
-            # waits for all threads to finish
-            if (worker.is_alive()):
-                logging.getLogger('fetcher.Crawler').info('Worker\
- %s is still alive' % worker.name)
-            worker.join() # waits for the worker to finish
+        if (not html_pool.empty()):
+            logging.getLogger('fetcher.Crawler').info('Waiting for processors\
+to finish their work')
+            html_pool.join()
 
         logging.getLogger('fetcher.Crawler').info('############')
         logging.getLogger('fetcher.Crawler').info('Crawler ended normally,\
@@ -257,86 +257,144 @@ class PageProcessor(threading.Thread):
     def __init__(self, group=None, target=None, name=None, theme=None, *args, **kwargs):
         threading.Thread.__init__(self, name=name, args=args, kwargs=kwargs)
         self._theme=theme
+        self._my_data = local()
 
 
-    def get_header_keywords(self, page):
-        """Looks for keywords in the page meta tag, and returns them"""
-        keyword_re = re.compile(r'<meta\sname=[\'|"]keywords[\'|"]\s' 
-                                + r'content=[\'|"](.*?)[\'|"].*>')
-        raw_keywords = keyword_re.findall(page)
-        keywords = []
-        for content in raw_keywords:
-            keywords.extend(content.split(', '))
+    def _rebuild_link(self, link):
+        url_type,_ = mimetypes.guess_type(link)
 
-        if (keywords.__len__() == 0 or 
-            keywords.__len__() > 0 and keywords[0] == 'None'):
-            return None
+        if (url_type != None and not url_type.__contains__('text')):
+            # url points to a file containing something else than text (can
+            # be pictures, PDF files etc.)
+            logging.getLogger('fetcher.CrawlerHTMLParser').info(\
+'Removed url %s containing a file of type %s' % (link, url_type))
+            return ''
 
-        logging.getLogger('fetcher.PageProcessor').info('Found in the\
- header %s ' % keywords)
+        if (link.startswith('/')):
+            # adds the root, the link is local but absolute
+            link = urlparse.urljoin(self._my_data.splitted_url.scheme + '://' +
+                                    self._my_data.splitted_url.netloc, link)
+        elif (link.startswith('#')):
+            # adds where we are, the link is internal
+            link = urlparse.urljoin(self._my_data.base_url, link)
+        elif (not link.startswith('http')):
+            # links points from here
+            link = urlparse.urljoin(self._my_data.base_url, link)
 
-        return keywords
+        if (not link.startswith('http')):
+            # link has not the good protocol
+            return ''
 
-
-    def remove_tags(self, html_page):
-        """Removes all the tags in the html page"""
-        cleaned_page = nltk.clean_html(html_page)
-        return cleaned_page
-
-
-    def add_links(self, html_page, base_url):
-        """Searches the anchors in a html page, and recreates them using the
-        current location given as parameter."""
-        anchor_re = re.compile(r'<a\s*href=[\'|"](.*?)[\'|"].*>')
-        links = anchor_re.findall(html_page)
-
-        splitted_base = urlparse.urlparse(base_url)
-
-        new_links = []
-
-        for link in links:
-            url_type,_ = mimetypes.guess_type(link)
-
-            if (url_type != None and not url_type.__contains__('text')):
-                # url points to a file containing something else than text (can
-                # be pictures, PDF files etc.)
-                logging.getLogger('fetcher.PageProcessor').info(\
- 'Removed url %s containing a file of type %s' % (link, url_type))
-                continue
-
-            if (link.startswith('/')):
-                # add the root, the link is local
-                link = urlparse.urljoin(splitted_base.scheme + '://' +
-                                        splitted_base.netloc, link)
-            elif (link.startswith('#')):
-                # add where we are, the link is internal
-                link = urlparse.urljoin(base_url, link)
-            elif (not link.startswith('http')):
-                # huh ?
-                link = urlparse.urljoin(base_url, link)
-
-            if (not link.startswith('http')):
-                # link has not the good protocol
-                continue
-
-            new_links.append(link)
-            url_to_visit.put(link)
-            logging.getLogger('fetcher.PageProcessor').info(\
- 'Added %s to queue' % link)
+        logging.getLogger('fetcher.CrawlerHTMLParser').info('Added %s to queue'
+                                                            % link)
+        url_to_visit.put(link)
+        return link
 
 
-        return new_links
+    def _handle_start_element(self, name, attrs):
+        if (name == 'a'):
+            # link
+            self._my_data.is_anchor = True
+            self._my_data.anchor_data = ''
+            try:
+                link = attrs['href']
+                self._my_data.current_link = self._rebuild_link(link)
+                # we'll be storing later a tuple of anchors and corresponding link
+                self._my_data.links_list.append(link)
+            except KeyError:
+                logging.getLogger('fetcher.CrawlerHTMLParser').warning('Whut ?\
+ anchor without any link ?')
+
+        if (name == 'meta'):
+            try:
+                if (attrs.get('name') == 'keywords'):
+                    self._my_data.keywords = attrs['content'].split(', ')
+                    if ('None' in self._my_data.keywords and
+                        self._my_data.keywords.__len__() == 1):
+                        # none keyword, should not be added
+                        self._my_data.keywords = []
+                    else:
+                        logging.getLogger('fetcher.CrawlerHTMLParser').info(\
+'Found %s in the header' % self._my_data.keywords)
+            except KeyError:
+                pass
+
+
+    def _handle_end_element(self, name):
+        if (name == 'a'):
+            self._my_data.is_anchor = False
+            # stores the content of the anchor in the local variable
+            self._my_data.anchors_list.append((self._my_data.current_link, self._my_data.anchor_data))
+
+
+    def _handle_data(self, data):
+        if (self._my_data.is_anchor):
+            # we are in the middle of an anchor, save the data
+            ''.join([self._my_data.anchor_data, data])
+        self._my_data.text_content = ''.join([self._my_data.text_content, data])
+
+
+    def _parse(self, base_url, html_page):
+        """Parses an html page and returns a huge data_structure:
+            * a tuple containing as first item the keywords found in the header
+            of the page inside the meta name="keywords" element
+            * the list of anchors found in the page (in fact a list of tuple
+            with the link as first value and the anchor's data in the
+            second position)
+            * the list of the links found in the page
+            * the content of the page without the html tags.
+            """
+        self._my_data.base_url = base_url
+        self._my_data.splitted_url = urlparse.urlparse(base_url)
+        self._my_data.is_anchor = False
+        self._my_data.anchors_list = []
+        self._my_data.links_list = []
+        self._my_data.text_content = ''
+        self._my_data.keywords = []
+
+        # it is necessary to create a new instance of the parser each time,
+        # no choice.
+        self._parser = xml.parsers.expat.ParserCreate()
+        self._parser.StartElementHandler = self._handle_start_element
+        self._parser.EndElementHandler = self._handle_end_element
+        self._parser.CharacterDataHandler = self._handle_data
+        
+        for line in html_page.splitlines(True):
+            try:
+                self._parser.Parse(line)
+            except ExpatError as e:
+                logging.getLogger('fetcher.PageProcessor').warn('ExpatError %d\
+ line %d colon %d in %s' % (e.code, e.lineno, e.offset, base_url))
+        # last call to the parser as requested by the doc
+        try:
+            self._parser.Parse('', True)
+        except ExpatError as e:
+            logging.getLogger('fetcher.PageProcessor').warn('ExpatError %d\
+line %d colon %d in %s' % (e.code, e.lineno, e.offset, base_url))
+            
+        result_pool.put((self._my_data.keywords, self._my_data.anchors_list,
+                self._my_data.links_list, self._my_data.text_content))
+        logging.getLogger('fetcher.PageProcessor').info('Page %s processed' %
+                                                        base_url)
+        return (self._my_data.keywords, self._my_data.anchors_list,
+                self._my_data.links_list, self._my_data.text_content)
 
 
     def run(self):
         try:
-            # gets a page from the queue
-            url, html = html_pool.get_nowait()
+            while True:
+                # gets a page from the queue
+                url, html = html_pool.get()
 
-            # runs only 
-            if (url != None and html != None):
-                links = self.add_links(html, url)
-                keywords = self.get_header_keywords(html)
+                # runs only 
+                if (url != None and html != None):
+                   self._parse(url, html) 
+
+                # tells to the pool that we finished working on the element,
+                # because the number of tasks is analysed to wait before
+                # shutting down the script
+                html_pool.task_done()
+
         except Empty:
             pass
 
@@ -348,6 +406,8 @@ class PageProcessor(threading.Thread):
         # We get all the words in the page, converted into lower case
         tokens = [x.lower() for x in
                   nltk.word_tokenize(nltk.clean_html(html_page))]
+
+        self._theme = [x.lower() for x in self._theme]
 
         inner_product = 0
         page_vector_norm = 0
@@ -377,50 +437,32 @@ class PageProcessor(threading.Thread):
 
         page_vector_norm = math.sqrt(page_vector_norm)
 
+        if page_vector_norm == 0:
+            score = 0
+            logging.getLogger("fetcher.PageProcessor").info("No keywords\
+found on this page: %s" % self._my_data.base_url)
 
-        # Classic similarity formula. Cosinus angle between our page
-        # vector and the theme vector (filled with 1/len(theme))
-        score = float(inner_product) / (page_vector_norm * 1./math.sqrt(theme_length))
+        else:
+            # Classic similarity formula. Cosinus angle between our page
+            # vector and the theme vector (filled with 1/len(theme))
+            score = float(inner_product) / (page_vector_norm * 1./math.sqrt(theme_length))
 
         return score
             
 
-
-
-
-        page_vector = []
-
-        score = 0  
-
-        for word in self._theme:
-            tf = tokens.count(word)
-
-            # Lets update the df of the current word. If its the first time we
-            # find it, an excecption is raised and the word is added in the
-            # df_table
-
-            if tf>0:
-                try:
-                    self._df_dict[word] += 1
-                except KeyError:
-                    self._df_dict[word] = 1
-
-                df = self._df_dict[word]
-                idf = 1./df
-                score += tf*idf
-
-        return score
-
-
-
 if __name__ == '__main__':
     if (sys.argv.__len__() > 1):
-        start_url = sys.argv[1:]
+        start_url = sys.argv[1:].split(' ')
         keywords = None
     else:
         print 'Welcome to the dummy python crawler.'
         try:
-            keywords = raw_input('Enter keywords for the crawler\n--> ')
+            while True:
+                keywords = raw_input('Enter keywords for the crawler\n--> ')
+                if (keywords.__len__() > 0):
+                        break
+                print 'Please enter keywords'
+
             while True:
                 start_url = raw_input('Enter start urls seperated by\
     commas\n--> ')
@@ -431,6 +473,11 @@ if __name__ == '__main__':
             print '\nCaught EOF, exiting'
             sys.exit(1)
         start_url = start_url.split(',')
+    for i in range(5):
+        p = PageProcessor()
+        p.daemon = True
+        p.start()
+
     crawler = Crawler(base_url=start_url, log=True, keywords=keywords)
     crawler.crawl()
 

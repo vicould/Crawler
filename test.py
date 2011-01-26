@@ -35,6 +35,7 @@ class CrawlerTest(unittest.TestCase):
 class PageProcessorTest(unittest.TestCase):
     def setUp(self):
         self.processor = PageProcessor()
+        self.processor._theme = ['Lorem', 'Ipsum']
 
 
     def test_keywords(self):
@@ -47,7 +48,7 @@ class PageProcessorTest(unittest.TestCase):
         self.assertEqual(self.processor.get_header_keywords(''), None)
 
     
-    def test_none_keyword(self):
+    def test_none_keywords(self):
         test_page = '<meta name="keywords" content="None" />'
         self.assertEqual(self.processor.get_header_keywords(test_page), None)
 
@@ -80,6 +81,12 @@ class PageProcessorTest(unittest.TestCase):
     def test_clean_page(self):
         test_page = '<html><body><p>Lorem Ipsum</p></body></html>'
         self.assertEqual(self.processor.remove_tags(test_page), 'Lorem Ipsum')
+
+    
+
+    def test_calculate_score(self):
+        test_page = '<html><body><p>Lorem Ipsum pouet</p></body></html>'
+        self.assertEqual(self.processor.calculate_score(test_page),2)
 
 
 

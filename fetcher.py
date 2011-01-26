@@ -4,6 +4,7 @@
 # libs
 import datetime
 import logging
+import math
 import mimetypes
 import nltk
 import os
@@ -42,6 +43,7 @@ class Crawler:
     _url_visited = []
     _current_root = ''
     _page_workers = []
+    _keywords = []
 
 
     def __init__(self, base_url, log=False, keywords=None):
@@ -71,6 +73,14 @@ class Crawler:
         self._current_root = split_url.scheme + '://'\
                 + split_url.netloc + '/'
         new_rules = self.change_domain(self._current_root)
+
+        # Initiates _keywords. If there is a recurrent keyword, we put it
+        # only once
+        for word in keyword:
+            if not self._keywords.__contains__(word):
+                keywords += word
+
+
         logging.getLogger('fetcher.Crawler').info('End of initialization')
         logging.getLogger('fetcher.Crawler').info('############')
 
@@ -218,7 +228,7 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
             self._url_visited.append(current_url)
 
             # start here a new PageProcessor thread
-            worker = PageProcessor(name=current_url))
+            worker = PageProcessor(name=current_url,theme=self._keywords)
             self._page_workers.append(worker)
             worker.start()
 
@@ -239,8 +249,14 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
 class PageProcessor(threading.Thread):
     """Worker for a html page, in order to retrieve the keywords from it and
     score its incoming links"""
-    def __init__(self, group=None, target=None, name=None, *args, **kwargs):
+
+    _theme = []
+    _df_dict = {}
+
+
+    def __init__(self, group=None, target=None, name=None, theme=None, *args, **kwargs):
         threading.Thread.__init__(self, name=name, args=args, kwargs=kwargs)
+        self._theme=theme
 
 
     def get_header_keywords(self, page):
@@ -323,6 +339,77 @@ class PageProcessor(threading.Thread):
                 keywords = self.get_header_keywords(html)
         except Empty:
             pass
+
+    
+    def calculate_score(self,html_page):
+        """Calculates the similarity of the web page to the theme. It uses the
+        cosinus formula of the vectorial model"""
+
+        # We get all the words in the page, converted into lower case
+        tokens = [x.lower() for x in
+                  nltk.word_tokenize(nltk.clean_html(html_page))]
+
+        inner_product = 0
+        page_vector_norm = 0
+        page_length = len(tokens)
+        theme_length = len(self._theme)
+
+        # We loop through each word of the theme and modify the vector of the
+        # current page. We also do the inner product and norm step by step
+        for word in self._theme:
+            tf = float(tokens.count(word))/page_length
+
+            if tf>0:
+                # If the keyword has already been found, we increment its idf.
+                # Otherwise an exception is raised and we initialize it
+                try:
+                    self._df_dict[word] += 1
+                except KeyError:
+                    self._df_dict[word] = 1
+
+                df = self._df_dict[word]
+                idf = 1./df
+                weight = tf*idf
+
+                inner_product += weight / theme_length
+                page_vector_norm += (tf * idf)**2
+
+
+        page_vector_norm = math.sqrt(page_vector_norm)
+
+
+        # Classic similarity formula. Cosinus angle between our page
+        # vector and the theme vector (filled with 1/len(theme))
+        score = float(inner_product) / (page_vector_norm * 1./math.sqrt(theme_length))
+
+        return score
+            
+
+
+
+
+        page_vector = []
+
+        score = 0  
+
+        for word in self._theme:
+            tf = tokens.count(word)
+
+            # Lets update the df of the current word. If its the first time we
+            # find it, an excecption is raised and the word is added in the
+            # df_table
+
+            if tf>0:
+                try:
+                    self._df_dict[word] += 1
+                except KeyError:
+                    self._df_dict[word] = 1
+
+                df = self._df_dict[word]
+                idf = 1./df
+                score += tf*idf
+
+        return score
 
 
 

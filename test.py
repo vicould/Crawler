@@ -36,6 +36,8 @@ class CrawlerTest(unittest.TestCase):
 class PageProcessor_test(unittest.TestCase):
     def setUp(self):
         self.parser = PageProcessor()
+        self.parser._theme = ['lorem', 'ipsum']
+        self.parser._my_data.base_url = "http://www.test.fr"
 
 
     def test_keyword(self):
@@ -58,6 +60,14 @@ class PageProcessor_test(unittest.TestCase):
         _,_,links,_ = self.parser._parse('http://localhost', test_page)
         self.assertEqual(links, ['/local'])
 
+
+    def test_calculate_score(self):
+        test_page = '<html><body><p>Lorem Ipsum</p></body></html>'
+        self.assertEqual(self.parser.calculate_score(test_page),1)
+
+    def test_calculate_score2(self):
+        test_page = '<html><body><p>Georges Brassens</p></body></html>'
+        self.assertEqual(self.parser.calculate_score(test_page),0)
 
 
 class SortedQueue_test(unittest.TestCase):
@@ -88,7 +98,7 @@ class SortedQueue_test(unittest.TestCase):
 
         self.assertEqual(sorted_values, values_ordered)
 
-
+    
 
 if __name__ == '__main__':
     unittest.main()

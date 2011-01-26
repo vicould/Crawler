@@ -4,6 +4,7 @@
 # libs
 import datetime
 import logging
+import math
 import mimetypes
 import nltk
 import os
@@ -48,7 +49,7 @@ class Crawler:
     _page_workers = []
 
 
-    def __init__(self, base_url, log=False, keywords=None):
+    def __init__(self, base_url, log=False):
         """Init the crawler with the base url of the indexing. It also sets the
         gentle robot directives parser, in order to start crawling directly
         after the initialization."""
@@ -75,6 +76,7 @@ class Crawler:
         self._current_root = split_url.scheme + '://'\
                 + split_url.netloc + '/'
         new_rules = self.change_domain(self._current_root)
+
         logging.getLogger('fetcher.Crawler').info('End of initialization')
         logging.getLogger('fetcher.Crawler').info('############')
 
@@ -158,10 +160,10 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
                 logging.getLogger('fetcher.Crawler').info('Page fetched')
         except HTTPError, he:
             logging.getLogger('fetcher.Crawler').warning('While fetching\
- caught HTTPError %s' % he.code)
+ %s caught HTTPError %d' % (url, he.code))
         except URLError, ex:
             logging.getLogger('fetcher.Crawler').warning('While fetching\
- caught URLError %s' % ex.reason)
+ %s caught URLError %s' % (url, ex.reason))
 
         return html
 
@@ -239,8 +241,14 @@ to finish their work')
 class PageProcessor(threading.Thread):
     """Worker for a html page, in order to retrieve the keywords from it and
     score its incoming links"""
-    def __init__(self, group=None, target=None, name=None, *args, **kwargs):
+
+    _theme = []
+    _df_dict = {}
+
+
+    def __init__(self, group=None, target=None, name=None, theme=None, *args, **kwargs):
         threading.Thread.__init__(self, name=name, args=args, kwargs=kwargs)
+        self._theme=theme
         self._my_data = local()
 
 
@@ -292,14 +300,14 @@ class PageProcessor(threading.Thread):
         if (name == 'meta'):
             try:
                 if (attrs.get('name') == 'keywords'):
-                    self._my_data.keywords = attrs['content'].split(', ')
-                    if ('None' in self._my_data.keywords and
-                        self._my_data.keywords.__len__() == 1):
+                    self._my_data.header_keywords = attrs['content'].split(', ')
+                    if ('None' in self._my_data.header_keywords and
+                        self._my_data.header_keywords.__len__() == 1):
                         # none keyword, should not be added
-                        self._my_data.keywords = []
+                        self._my_data.header_keywords = []
                     else:
                         logging.getLogger('fetcher.CrawlerHTMLParser').info(\
-'Found %s in the header' % self._my_data.keywords)
+'Found %s in the header' % self._my_data.header_keywords)
             except KeyError:
                 pass
 
@@ -321,7 +329,7 @@ class PageProcessor(threading.Thread):
 
     def _parse(self, base_url, html_page):
         """Parses an html page and returns a huge data_structure:
-            * a tuple containing as first item the keywords found in the header
+            * a tuple containing as first item the header_keywords found in the header
             of the page inside the meta name="keywords" element
             * the list of anchors found in the page (in fact a list of tuple
             with the link as first value and the anchor's data in the
@@ -335,7 +343,7 @@ class PageProcessor(threading.Thread):
         self._my_data.anchors_list = []
         self._my_data.links_list = []
         self._my_data.text_content = ''
-        self._my_data.keywords = []
+        self._my_data.header_keywords = []
 
         # it is necessary to create a new instance of the parser each time,
         # no choice.
@@ -363,11 +371,11 @@ class PageProcessor(threading.Thread):
             logging.getLogger('fetcher.PageProcessor').warn('ExpatError %d\
 line %d colon %d in %s' % (e.code, e.lineno, e.offset, base_url))
             
-        result_pool.put((self._my_data.keywords, self._my_data.anchors_list,
+        result_pool.put((self._my_data.header_keywords, self._my_data.anchors_list,
                 self._my_data.links_list, self._my_data.text_content))
         logging.getLogger('fetcher.PageProcessor').info('Page %s processed' %
                                                         base_url)
-        return (self._my_data.keywords, self._my_data.anchors_list,
+        return (self._my_data.header_keywords, self._my_data.anchors_list,
                 self._my_data.links_list, self._my_data.text_content)
 
 
@@ -390,18 +398,71 @@ line %d colon %d in %s' % (e.code, e.lineno, e.offset, base_url))
             pass
 
     
+    def calculate_score(self,html_page):
+        """Calculates the similarity of the web page to the theme. It uses the
+        cosinus formula of the vectorial model"""
+
+        # We get all the words in the page, converted into lower case
+        tokens = [x.lower() for x in
+                  nltk.word_tokenize(nltk.clean_html(html_page))]
+
+        inner_product = 0
+        page_vector_norm = 0
+        page_length = len(tokens)
+        theme_length = len(self._theme)
+
+        # We loop through each word of the theme and modify the vector of the
+        # current page. We also do the inner product and norm step by step
+        for word in self._theme:
+            tf = float(tokens.count(word))/page_length
+
+            if tf>0:
+                # If the keyword has already been found, we increment its idf.
+                # Otherwise an exception is raised and we initialize it
+                try:
+                    self._df_dict[word] += 1
+                except KeyError:
+                    self._df_dict[word] = 1
+
+                df = self._df_dict[word]
+                idf = 1./df
+                weight = tf*idf
+
+                inner_product += weight / theme_length
+                page_vector_norm += (tf * idf)**2
+
+
+        page_vector_norm = math.sqrt(page_vector_norm)
+
+        if page_vector_norm == 0:
+            score = 0
+            logging.getLogger("fetcher.PageProcessor").info("No keywords\
+found on this page: %s" % self._my_data.base_url)
+
+        else:
+            # Classic similarity formula. Cosinus angle between our page
+            # vector and the theme vector (filled with 1/len(theme))
+            score = float(inner_product) / (page_vector_norm * 1./math.sqrt(theme_length))
+
+        return score
+            
 
 if __name__ == '__main__':
     if (sys.argv.__len__() > 1):
         start_url = sys.argv[1:]
-        keywords = None
+        theme = None
     else:
         print 'Welcome to the dummy python crawler.'
         try:
-            keywords = raw_input('Enter keywords for the crawler\n--> ')
+            while True:
+                theme = raw_input('Enter keywords (theme) for the crawler\n--> ')
+                if (theme.__len__() > 0):
+                        break
+                print 'Please enter keywords (theme)'
+
             while True:
                 start_url = raw_input('Enter start urls seperated by\
-    commas\n--> ')
+ commas\n--> ')
                 if (start_url.__len__() > 0):
                     break
                 print 'Please enter an url'
@@ -409,11 +470,15 @@ if __name__ == '__main__':
             print '\nCaught EOF, exiting'
             sys.exit(1)
         start_url = start_url.split(',')
+
+    theme = [x.lower() for x in theme]
+    theme = list(set(theme))
+
     for i in range(5):
-        p = PageProcessor()
+        p = PageProcessor(theme=theme)
         p.daemon = True
         p.start()
-
-    crawler = Crawler(base_url=start_url, log=True, keywords=keywords)
+    
+    crawler = Crawler(base_url=start_url, log=True)
     crawler.crawl()
 

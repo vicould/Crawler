@@ -79,7 +79,7 @@ class Crawler:
         logging.getLogger('fetcher.Crawler').info('############')
 
 
-    def __init_logger(self):
+    def _init_logger(self):
         """Inits the logger used internally, calling a few utilities to handle
         events, write them properly etc.
         Should be called at the beginning of the constructor, logger is used
@@ -307,6 +307,7 @@ class PageProcessor(threading.Thread):
     def _handle_end_element(self, name):
         if (name == 'a'):
             self._my_data.is_anchor = False
+            # stores the content of the anchor in the local variable
             self._my_data.anchors_list.append((self._my_data.current_link, self._my_data.anchor_data))
 
 
@@ -335,6 +336,8 @@ class PageProcessor(threading.Thread):
         self._my_data.text_content = ''
         self._my_data.keywords = []
 
+        # it is necessary to create a new instance of the parser each time,
+        # no choice.
         self._parser = xml.parsers.expat.ParserCreate()
         self._parser.StartElementHandler = self._handle_start_element
         self._parser.EndElementHandler = self._handle_end_element
@@ -343,11 +346,15 @@ class PageProcessor(threading.Thread):
         for line in html_page.splitlines(True):
             try:
                 self._parser.Parse(line)
-                self._parser.Parse('', True)
             except ExpatError as e:
                 logging.getLogger('fetcher.PageProcessor').warn('ExpatError %d\
  line %d colon %d in %s' % (e.code, e.lineno, e.offset, base_url))
         # last call to the parser as requested by the doc
+        try:
+            self._parser.Parse('', True)
+        except ExpatError as e:
+            logging.getLogger('fetcher.PageProcessor').warn('ExpatError %d\
+line %d colon %d in %s' % (e.code, e.lineno, e.offset, base_url))
             
         result_pool.put((self._my_data.keywords, self._my_data.anchors_list,
                 self._my_data.links_list, self._my_data.text_content))
@@ -367,6 +374,9 @@ class PageProcessor(threading.Thread):
                 if (url != None and html != None):
                    self._parse(url, html) 
 
+                # tells to the pool that we finished working on the element,
+                # because the number of tasks is analysed to wait before
+                # shutting down the script
                 html_pool.task_done()
 
         except Empty:

@@ -82,7 +82,6 @@ class SortedQueue_test(unittest.TestCase):
         sorted_values = []
         while True:
             try:
-                print self.sorted_queue.qsize()
                 sorted_values.append(self.sorted_queue.get_nowait())
             except Empty:
                 break

@@ -54,7 +54,7 @@ class Crawler:
         after the initialization."""
         self.starttime = datetime.datetime.now()
         self.log = log
-        self.__init_logger()
+        self._init_logger()
         logging.getLogger('fetcher.Crawler').info('Starting crawler')
 
         for url in base_url:
@@ -314,7 +314,8 @@ class PageProcessor(threading.Thread):
     def _handle_data(self, data):
         if (self._my_data.is_anchor):
             # we are in the middle of an anchor, save the data
-            ''.join([self._my_data.anchor_data, data])
+            ''.join([self._my_data.anchor_data, data.lower()])
+            # string is converted to lowercase, easier to look for
         self._my_data.text_content = ''.join([self._my_data.text_content, data])
 
 
@@ -343,12 +344,18 @@ class PageProcessor(threading.Thread):
         self._parser.EndElementHandler = self._handle_end_element
         self._parser.CharacterDataHandler = self._handle_data
         
+        error = 0
         for line in html_page.splitlines(True):
             try:
                 self._parser.Parse(line)
             except ExpatError as e:
+                error += 1
                 logging.getLogger('fetcher.PageProcessor').warn('ExpatError %d\
  line %d colon %d in %s' % (e.code, e.lineno, e.offset, base_url))
+                if error == 10:
+                    logging.getLogger('fetcher.PageProcessor').warn('Stopping\
+ here for this page, too many errors')
+                    break
         # last call to the parser as requested by the doc
         try:
             self._parser.Parse('', True)
@@ -386,7 +393,7 @@ line %d colon %d in %s' % (e.code, e.lineno, e.offset, base_url))
 
 if __name__ == '__main__':
     if (sys.argv.__len__() > 1):
-        start_url = sys.argv[1:].split(' ')
+        start_url = sys.argv[1:]
         keywords = None
     else:
         print 'Welcome to the dummy python crawler.'

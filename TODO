@@ -8,6 +8,7 @@ PRIORITY:
  * Integrate score calculation
  * Give a score bonus when a theme word is mentioned in the meta tag
  * Export into a simili website with a index.html containing all crawling feedback
+ * getting an url from the pool can be blocking, set a timeout after which the crawler exits
 
 
  * Introduce arguments using flags (see optparser library), and an interactive mode.

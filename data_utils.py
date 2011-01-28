@@ -78,23 +78,23 @@ class SynchronizedDict:
         self.mutex = threading.Lock()
         self.not_full = threading.Condition(self.mutex)
         self.not_empty = threading.Condition(self.mutex)
-        self.all_tasks_done = thrading.Condition(self.mutex)
+        self.all_tasks_done = threading.Condition(self.mutex)
         self.unfinished_tasks = 0
 
 
     def task_done(self):
-        """Indicate that a formerly enqueued task is complete.
+        """Indicates that a formerly endictd task is complete.
 
-        Used by Queue consumer threads.  For each get() used to fetch a task,
-        a subsequent call to task_done() tells the queue that the processing
+        Used by dict consumer threads.  For each get() used to fetch a task,
+        a subsequent call to task_done() tells the dict that the processing
         on the task is complete.
 
         If a join() is currently blocking, it will resume when all items
         have been processed (meaning that a task_done() call was received
-        for every item that had been put() into the queue).
+        for every item that had been put() into the dict).
 
         Raises a ValueError if called more times than there were items
-        placed in the queue.
+        placed in the dict.
         """
         self.all_tasks_done.acquire()
         try:
@@ -109,10 +109,10 @@ class SynchronizedDict:
 
 
     def join(self):
-        """Blocks until all items in the Queue have been gotten and processed.
+        """Blocks until all items in the dict have been gotten and processed.
 
         The count of unfinished tasks goes up whenever an item is added to the
-        queue. The count goes down whenever a consumer thread calls task_done()
+        dict. The count goes down whenever a consumer thread calls task_done()
         to indicate the item was retrieved and all work on it is complete.
 
         When the count of unfinished tasks drops to zero, join() unblocks.
@@ -126,7 +126,7 @@ class SynchronizedDict:
 
 
     def qsize(self):
-        """Return the approximate size of the queue (not reliable!)."""
+        """Returns the approximate size of the dict (not reliable!)."""
         self.mutex.acquire()
         n = self._qsize()
         self.mutex.release()
@@ -134,7 +134,7 @@ class SynchronizedDict:
 
 
     def empty(self):
-        """Return True if the queue is empty, False otherwise (not reliable!)."""
+        """Returns True if the dict is empty, False otherwise (not reliable!)."""
         self.mutex.acquire()
         n = not self._qsize()
         self.mutex.release()
@@ -142,7 +142,7 @@ class SynchronizedDict:
 
 
     def full(self):
-        """Return True if the queue is full, False otherwise (not reliable!)."""
+        """Returns True if the dict is full, False otherwise (not reliable!)."""
         self.mutex.acquire()
         n = 0 < self.maxsize == self._qsize()
         self.mutex.release()
@@ -150,13 +150,13 @@ class SynchronizedDict:
 
 
     def put(self, key, item, block=True, timeout=None):
-        """Put in the dict the mapping between an item and a dict.
+        """Puts in the dict the mapping between an item and a dict.
 
         If optional args 'block' is true and 'timeout' is None (the default),
         block if necessary until a free slot is available. If 'timeout' is
         a positive number, it blocks at most 'timeout' seconds and raises
         the Full exception if no free slot was available within that time.
-        Otherwise ('block' is false), put an item on the queue if a free slot
+        Otherwise ('block' is false), put an item on the dict if a free slot
         is immediately available, else raise the Full exception ('timeout'
         is ignored in that case).
         """
@@ -186,10 +186,10 @@ class SynchronizedDict:
 
 
     def put_nowait(self, key, item):
-        """Put the mapping between the key and the item in the dict without
+        """Puts the mapping between the key and the item in the dict without
         blocking.
 
-        Only enqueue the item if a free slot is immediately available.
+        Only endict the item if a free slot is immediately available.
         Otherwise raise the Full exception.
         """
         return self.put(key, item, False)
@@ -222,7 +222,7 @@ class SynchronizedDict:
             if not self._qsize():
                 raise Empty
             else:
-                item = self._get(key)
+                item = self._get_with_key(key)
                 self.not_full.notify()
                 return item
         finally:
@@ -265,7 +265,7 @@ class SynchronizedDict:
 
 
     def get_nowait(self):
-        """Remove and return an arbitrary mapping from the dict without
+        """Removes and returns an arbitrary mapping from the dict without
         blocking.
 
         Only get a mapping if one is immediately available. Otherwise
@@ -275,28 +275,28 @@ class SynchronizedDict:
 
 
     def _init(self, maxsize=0):
-        self.queue = {}
+        self.dict = {}
 
     def _qsize(self):
-        return len(self.queue)
+        return len(self.dict)
 
 
     def _put(self, key, item):
-        self.queue[key] = list(item)
+        self.dict[key] = [item]
 
     
     # adds an item to an existing place
-    def _add_item_to_key(key, item):
-        self.queue[key] = self.queue[key].append(item)
+    def _add_item_to_key(self, key, item):
+        self.dict[key].append(item)
 
 
     # returns the value of the key
     def _get_with_key(self, key):
-        return self.queue.pop(key)
+        return self.dict.pop(key)
 
     
-    def _get(self, key):
-        return self.popitem()
+    def _get(self):
+        return self.dict.popitem()
 
 
 class DataPersistance:

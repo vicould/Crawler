@@ -7,7 +7,7 @@ import unittest
 from Queue import Empty
 
 from fetcher import Crawler, PageProcessor
-from data_utils import SortedQueue
+from data_utils import SortedQueue, SynchronizedDict
 
 
 class CrawlerTest(unittest.TestCase):
@@ -75,7 +75,7 @@ class SortedQueue_test(unittest.TestCase):
         self.sorted_queue = SortedQueue()
 
 
-    def test_put_in_sorted_queue(self):
+    def test_put(self):
         self.sorted_queue.put('obj')
         self.assertEqual(self.sorted_queue.get(), 'obj')
 
@@ -88,7 +88,7 @@ class SortedQueue_test(unittest.TestCase):
         values_ordered = ['Fermentum', 'Euismod', 'Purus', 'Sem']
         for item in values:
             self.sorted_queue.put(item)
-        
+
         sorted_values = []
         while True:
             try:
@@ -98,7 +98,34 @@ class SortedQueue_test(unittest.TestCase):
 
         self.assertEqual(sorted_values, values_ordered)
 
-    
+
+
+class SynchronizedDict_test(unittest.TestCase):
+    def setUp(self):
+        self.dict = SynchronizedDict()
+
+
+    def test_put(self):
+        self.dict.put('Babar', 'éléphant')
+        self.assertEqual(self.dict.get(), ('Babar', ['éléphant']))
+
+    def test_add(self):
+        self.dict.put('Babar', 'éléphant')
+        self.dict.add_item_to_key('Babar', 'roi')
+        self.assertEqual(self.dict.get(), ('Babar', ['éléphant', 'roi']))
+
+    def test_get_key(self):
+        self.dict.put('Babar', 'éléphant')
+        self.dict.put('Céleste', 'femme de babar')
+        self.assertEqual(self.dict.get_with_key('Céleste'),
+                                                 ['femme de babar'])
+
+
+    def test_replace(self):
+        self.dict.put('Babar', 'éléphant')
+        self.dict.put('Babar', 'roi')
+        self.assertEqual(self.dict.get(), ('Babar', ['roi']))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -7,5 +7,4 @@ PRIORITY:
  * Integrate score calculation
  * Give a score bonus when a theme word is mentioned in the meta tag
 
- * Introduce arguments using flags (see optparser library), and an interactive mode.
  * Work also with proxies

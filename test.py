@@ -13,7 +13,7 @@ from data_utils import SortedQueue, SynchronizedDict
 class CrawlerTest(unittest.TestCase):
     def setUp(self):
         self.first_links = ['http://localhost/']
-        self.crawler = Crawler(self.first_links)
+        self.crawler = Crawler(base_url=self.first_links)
 
 
     def test_initial_link(self):
@@ -30,7 +30,7 @@ class CrawlerTest(unittest.TestCase):
 
     def test_protocol_failure(self):
         print '\nyou should soon have a CRITICAL log message'
-        self.assertRaises(SystemExit, Crawler, ['ftp://localhost'])
+        self.assertRaises(SystemExit, Crawler, base_url=['ftp://localhost'])
 
 
 

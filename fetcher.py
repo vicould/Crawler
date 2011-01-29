@@ -7,6 +7,7 @@ import logging
 import math
 import mimetypes
 import nltk
+import optparse
 import os
 from Queue import Queue, Empty
 import re
@@ -49,14 +50,17 @@ class Crawler:
     _page_workers = []
 
 
-    def __init__(self, base_url, log=False):
+    def __init__(self, *args, **kwargs):
         """Init the crawler with the base url of the indexing. It also sets the
         gentle robot directives parser, in order to start crawling directly
         after the initialization."""
         self.starttime = datetime.datetime.now()
-        self.log = log
+        self.log = kwargs.get('log', False)
+        self._iterations = kwargs.get('iterations', 10)
         self._init_logger()
         logging.getLogger('fetcher.Crawler').info('Starting crawler')
+
+        base_url = kwargs['base_url']
 
         for url in base_url:
             url_to_visit.put(url) # start url
@@ -181,9 +185,8 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
         you."""
         i = 0
         # limiting the trip of the crawler
-        while (i < 10):
+        while i < self._iterations:
             time.sleep(1) # waits 1s at each step
-            i += 1
 
             # takes one url from the queue, with a timeout of 5 seconds
             try:
@@ -195,7 +198,6 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
 
             if (current_url in self._url_visited):
                 # url was already visited once
-                i -= 1
                 logging.getLogger('fetcher.Crawler').info('%s has already\
  been visited at least once' % current_url)
                 continue
@@ -226,10 +228,13 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
                 continue
 
             # feeds the pool with data, in order to make the processors work
+            logging.getLogger('fetcher.Crawler').info('Added %s to pool' %
+                                                     current_url)
             html_pool.put((current_url, page))
             self._url_visited.append(current_url)
 
             url_to_visit.task_done()
+            i += 1
 
         # end of execution
         if (not html_pool.empty()):
@@ -466,10 +471,35 @@ found on this page: %s" % self._my_data.base_url)
 
 
 def main(args):
+    kwargs = {'log':True}
     if (args.__len__() > 1):
-        start_url = args[1:]
-        theme = None
+        usage_str = 'usage: %prog [options] -u URL -t THEME'
+        description_str = u'This is a dummy thematic crawler written in Python,\
+ using threads to process each page collected and to write down the results.\n\
+Written by Nicolas Bontoux and Ludovic Delaveau for the "aspects avancés du\
+web" crawler project.'
+        parser = optparse.OptionParser(description=description_str,
+                                      usage=usage_str)
+
+        parser.add_option('-u', '--url', dest='base_url', help='start crawling\
+ using this URL', metavar='URL')
+        parser.add_option('-t', '--theme', dest='theme', help='sets the THEME\
+ for the crawler', metavar='THEME')
+        parser.add_option('-n', '--iterations', type='int', dest='iterations',
+                          help='do only I iterations', metavar='I', default=10)
+
+        (options, args) = parser.parse_args()
+        try:
+            kwargs['base_url'] = options.base_url.split(',')
+            kwargs['theme'] = options.theme
+        except AttributeError:
+            parser.error('theme and url arguments required')
+            parser.print_help()
+
+        kwargs['iterations'] = options.iterations
+
     else:
+        options = {}
         print 'Welcome to the dummy python crawler.'
         try:
             while True:
@@ -488,16 +518,20 @@ def main(args):
             print '\nCaught EOF, exiting'
             sys.exit(1)
         start_url = start_url.split(',')
+        kwargs['theme'] = theme
+        kwargs['start_url'] = start_url
 
+    theme = kwargs['theme']
     theme = [x.lower() for x in theme]
     theme = list(set(theme))
+    kwargs['theme'] = theme
 
     for i in range(5):
         p = PageProcessor(theme=theme)
         p.daemon = True
         p.start()
 
-    crawler = Crawler(base_url=start_url, log=True)
+    crawler = Crawler(**kwargs)
     crawler.crawl()
     pers = DataPersistance()
     pers.launch_dump()

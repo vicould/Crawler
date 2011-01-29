@@ -8,3 +8,7 @@
 # ignore crawler log files :
 log
 log/*
+
+# ignore persistance folder:
+pers
+pers/*

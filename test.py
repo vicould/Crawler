@@ -29,6 +29,7 @@ class CrawlerTest(unittest.TestCase):
 
 
     def test_protocol_failure(self):
+        print '\nyou should soon have a CRITICAL log message'
         self.assertRaises(SystemExit, Crawler, ['ftp://localhost'])
 
 
@@ -43,30 +44,32 @@ class PageProcessor_test(unittest.TestCase):
     def test_keyword(self):
         test_page = '<html><head><meta name="keywords" content="test, bla,\
  python" /></head></html>'
-        keywords,_,_,_ = self.parser._parse('http://localhost', test_page)
+        _,keywords,_,_,_ = self.parser._parse('http://localhost', test_page)
         self.assertEqual(keywords, ['test', 'bla', 'python'])
 
 
     def test_none_keyword(self):
         test_page = '<html><head><meta name="keywords"\
  content="None" /></head></html>'
-        keywords,_,_,_ = self.parser._parse('http://localhost', test_page)
+        _,keywords,_,_,_ = self.parser._parse('http://localhost', test_page)
         self.assertEqual(keywords, [])
 
 
     def test_link(self):
         test_page = u'<html><head><title>Test</title></head><body><a href="/local" />\
  </body></html>'
-        _,_,links,_ = self.parser._parse('http://localhost', test_page)
+        _,_,_,links,_ = self.parser._parse('http://localhost', test_page)
         self.assertEqual(links, ['/local'])
 
 
     def test_calculate_score(self):
         test_page = '<html><body><p>Lorem Ipsum</p></body></html>'
+        self.parser._parse('http://localhost', test_page)
         self.assertEqual(self.parser.calculate_score(test_page),1)
 
     def test_calculate_score2(self):
         test_page = '<html><body><p>Georges Brassens</p></body></html>'
+        self.parser._parse('http://localhost', test_page)
         self.assertEqual(self.parser.calculate_score(test_page),0)
 
 
@@ -102,29 +105,51 @@ class SortedQueue_test(unittest.TestCase):
 
 class SynchronizedDict_test(unittest.TestCase):
     def setUp(self):
-        self.dict = SynchronizedDict()
+        self.dict_inst = SynchronizedDict()
 
 
     def test_put(self):
-        self.dict.put('Babar', 'éléphant')
-        self.assertEqual(self.dict.get(), ('Babar', ['éléphant']))
+        self.dict_inst.put('Babar', 'éléphant')
+        self.assertEqual(self.dict_inst.get(), ('Babar', ['éléphant']))
 
     def test_add(self):
-        self.dict.put('Babar', 'éléphant')
-        self.dict.add_item_to_key('Babar', 'roi')
-        self.assertEqual(self.dict.get(), ('Babar', ['éléphant', 'roi']))
+        self.dict_inst.put('Babar', 'éléphant')
+        self.dict_inst.add_item_to_key('Babar', 'roi')
+        self.assertEqual(self.dict_inst.get(), ('Babar', ['éléphant', 'roi']))
 
     def test_get_key(self):
-        self.dict.put('Babar', 'éléphant')
-        self.dict.put('Céleste', 'femme de babar')
-        self.assertEqual(self.dict.get_with_key('Céleste'),
+        self.dict_inst.put('Babar', 'éléphant')
+        self.dict_inst.put('Céleste', 'femme de babar')
+        self.assertEqual(self.dict_inst.get_with_key('Céleste'),
                                                  ['femme de babar'])
 
 
     def test_replace(self):
-        self.dict.put('Babar', 'éléphant')
-        self.dict.put('Babar', 'roi')
-        self.assertEqual(self.dict.get(), ('Babar', ['roi']))
+        self.dict_inst.put('Babar', 'éléphant')
+        self.dict_inst.put('Babar', 'roi')
+        self.assertEqual(self.dict_inst.get(), ('Babar', ['roi']))
+
+
+    def test_add_failed(self):
+        self.assertRaises(KeyError, self.dict_inst.add_item_to_key, 1, 2)
+
+
+    def test_get_failed(self):
+        self.dict_inst.put(2, 3)
+        self.assertRaises(KeyError, self.dict_inst.get_with_key, 1)
+
+
+    def test_empty_get_nowait(self):
+        self.assertRaises(Empty, self.dict_inst.get_nowait)
+
+
+    def test_empty_get_timeout(self):
+        print '\ntesting get from empty dict, probably waiting 2 seconds'
+        self.assertRaises(Empty, self.dict_inst.get, timeout=2)
+
+
+    def test_empty_get_key(self):
+        self.assertRaises(Empty, self.dict_inst.get_with_key, 1)
 
 
 if __name__ == '__main__':

@@ -25,11 +25,11 @@ from xml.parsers.expat import ExpatError
 # local modules
 from data_utils import SortedQueue
 import logger
+from persistance import DataPersistance, result_pool
 
 
 url_to_visit = SortedQueue()
 html_pool = Queue()
-result_pool = Queue()
 
 
 class Crawler:
@@ -210,13 +210,13 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
  to %s' % new_root)
 
             # checks the url against the robots.txt directives
-            if (not self._rp.can_fetch(self._user_agent, current_url)): 
+            if (not self._rp.can_fetch(self._user_agent, current_url)):
                 logging.getLogger('fetcher.Crawler').info('Robot non\
  authorized on %s' % current_url)
                 continue
 
             page = self.fetch_page(current_url)
-	    
+
             if (page == ''): # page is empty, no need to do anything with it
                 continue
 
@@ -236,6 +236,9 @@ to finish their work')
         logging.getLogger('fetcher.Crawler').info('Crawler ended normally,\
  after %ss of execution' % str(datetime.datetime.now() - self.starttime))
 
+
+
+##### FETCHER END ######
 
 
 class PageProcessor(threading.Thread):
@@ -316,27 +319,32 @@ class PageProcessor(threading.Thread):
         if (name == 'a'):
             self._my_data.is_anchor = False
             # stores the content of the anchor in the local variable
-            self._my_data.anchors_list.append((self._my_data.current_link, self._my_data.anchor_data))
+            self._my_data.anchors_list.append((self._my_data.current_link,
+                                               self._my_data.anchor_data))
 
 
     def _handle_data(self, data):
         if (self._my_data.is_anchor):
             # we are in the middle of an anchor, save the data
-            ''.join([self._my_data.anchor_data, data.lower()])
+            self._my_data.anchor_data = \
+                    ''.join([self._my_data.anchor_data, data.lower()])
             # string is converted to lowercase, easier to look for
-        self._my_data.text_content = ''.join([self._my_data.text_content, data])
+        self._my_data.text_content =\
+                ''.join([self._my_data.text_content, data])
 
 
     def _parse(self, base_url, html_page):
-        """Parses an html page and returns a huge data_structure:
-            * a tuple containing as first item the header_keywords found in the header
-            of the page inside the meta name="keywords" element
+        """Parses an html page and returns a huge data_structure, which is a
+        dictionary:
+            * a tuple containing as first item the header_keywords found in the
+            header of the page inside the meta name="keywords" element
             * the list of anchors found in the page (in fact a list of tuple
             with the link as first value and the anchor's data in the
             second position)
             * the list of the links found in the page
             * the content of the page without the html tags.
-            """
+        The keys in this dictionary after this call are url, keywords, anchors,
+        links and text_content """
         self._my_data.base_url = base_url
         self._my_data.splitted_url = urlparse.urlparse(base_url)
         self._my_data.is_anchor = False
@@ -351,7 +359,7 @@ class PageProcessor(threading.Thread):
         self._parser.StartElementHandler = self._handle_start_element
         self._parser.EndElementHandler = self._handle_end_element
         self._parser.CharacterDataHandler = self._handle_data
-        
+
         error = 0
         for line in html_page.splitlines(True):
             try:
@@ -370,41 +378,22 @@ class PageProcessor(threading.Thread):
         except ExpatError as e:
             logging.getLogger('fetcher.PageProcessor').warn('ExpatError %d\
 line %d colon %d in %s' % (e.code, e.lineno, e.offset, base_url))
-            
-        result_pool.put((self._my_data.header_keywords, self._my_data.anchors_list,
-                self._my_data.links_list, self._my_data.text_content))
+
         logging.getLogger('fetcher.PageProcessor').info('Page %s processed' %
                                                         base_url)
-        return (self._my_data.header_keywords, self._my_data.anchors_list,
-                self._my_data.links_list, self._my_data.text_content)
+        return {'url' : base_url, 'keywords' : self._my_data.header_keywords,
+                'anchors' : self._my_data.anchors_list,
+                'links' : self._my_data.links_list,
+                'text_content' : self._my_data.text_content}
 
 
-    def run(self):
-        try:
-            while True:
-                # gets a page from the queue
-                url, html = html_pool.get()
-
-                # runs only 
-                if (url != None and html != None):
-                   self._parse(url, html) 
-
-                # tells to the pool that we finished working on the element,
-                # because the number of tasks is analysed to wait before
-                # shutting down the script
-                html_pool.task_done()
-
-        except Empty:
-            pass
-
-    
     def calculate_score(self,html_page):
         """Calculates the similarity of the web page to the theme. It uses the
         cosinus formula of the vectorial model"""
 
         # We get all the words in the page, converted into lower case
         tokens = [x.lower() for x in
-                  nltk.word_tokenize(nltk.clean_html(html_page))]
+                  nltk.word_tokenize(self._my_data.text_content)]
 
         inner_product = 0
         page_vector_norm = 0
@@ -445,11 +434,35 @@ found on this page: %s" % self._my_data.base_url)
             score = float(inner_product) / (page_vector_norm * 1./math.sqrt(theme_length))
 
         return score
-            
 
-if __name__ == '__main__':
-    if (sys.argv.__len__() > 1):
-        start_url = sys.argv[1:]
+
+    def run(self):
+        try:
+            while True:
+                # gets a page from the queue
+                url, html = html_pool.get()
+
+                # runs only
+                if (url != None and html != None):
+                   tmp_result = self._parse(url, html)
+
+                # add here the call to the score method, and add the result in
+                # the tmp_result using put
+
+                result_pool.put(tmp_result)
+                # tells to the pool that we finished working on the element,
+                # because the number of tasks is analysed to wait before
+                # shutting down the script
+                html_pool.task_done()
+
+        except Empty:
+            pass
+
+
+
+def main(args):
+    if (args.__len__() > 1):
+        start_url = args[1:]
         theme = None
     else:
         print 'Welcome to the dummy python crawler.'
@@ -478,7 +491,13 @@ if __name__ == '__main__':
         p = PageProcessor(theme=theme)
         p.daemon = True
         p.start()
-    
+
     crawler = Crawler(base_url=start_url, log=True)
     crawler.crawl()
+    pers = DataPersistance()
+    pers.launch_dump()
 
+
+
+if __name__ == '__main__':
+   main(sys.argv)

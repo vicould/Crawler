@@ -2,13 +2,28 @@
 # -*- coding: utf-8 -*-
 
 
-from datetime import datetime
 from Queue import Queue, Empty, Full
-import sqlite3
 import threading
 from threading import local
 from time import time as _time
 import os
+
+
+class SetQueue(Queue):
+    def _init(self, maxsize):
+        self.queue = set([])
+
+
+    def _qsize(self, len=len):
+        return len(self.queue)
+
+
+    def _put(self, item):
+        self.queue.add(item)
+
+
+    def _get(self):
+        return self.queue.pop()
 
 
 
@@ -17,42 +32,42 @@ class SortedQueue(Queue):
     duplicates are being put. Therefore, the most important element is
     returned when calling the get method"""
     def _init(self, maxsize):
-        self._queue = [] # our queue is a basic list
+        self.queue = [] # our queue is a basic list
 
 
     def _qsize(self, len=len):
-        return len(self._queue)
+        return len(self.queue)
 
 
     def _put(self, item):
         """Organizes the new queue with the element"""
-        if len(self._queue) == 0:
-            self._queue.append((item, 1))
+        if len(self.queue) == 0:
+            self.queue.append((item, 1))
             return
         i = 0
         item_score = 1
         # could be way better optimized, no time for that now
-        for value, score in self._queue:
+        for value, score in self.queue:
             if (item == value):
                 # adds the score
                 item_score += score
                 # removes the element from the list
-                self._queue.pop(i)
+                self.queue.pop(i)
                 break
             i += 1
 
         i = 0
         # tries to find where to put the element
-        for value, score in self._queue:
+        for value, score in self.queue:
             # next element is more important, stores the value here
             if (item_score <= score):
-                self._queue.insert(i, (item, item_score))
+                self.queue.insert(i, (item, item_score))
                 return
             i += 1
 
-    
+
     def _get(self):
-        value = self._queue.pop()[0]
+        value = self.queue.pop()[0]
         return value
 
 
@@ -178,8 +193,9 @@ class SynchronizedDict:
                         if remaining <= 0.0:
                             raise Full
                         self.not_full.wait(remaining)
-            self._put(key, item)
-            self.unfinished_tasks += 1
+            new = self._put(key, item)
+            if new:
+                self.unfinished_tasks += 1
             self.not_empty.notify()
         finally:
             self.not_full.release()
@@ -194,7 +210,7 @@ class SynchronizedDict:
         """
         return self.put(key, item, False)
 
-    
+
     def add_item_to_key(self, key, item):
         """Method to add a value to an existing key. Use put with the name of
         the key if you want to overwrite the current value associated with the
@@ -203,7 +219,7 @@ class SynchronizedDict:
         why there isn't a block or timeout argument"""
         self.not_full.acquire()
         try:
-            self._add_item_to_key(key, item) 
+            self._add_item_to_key(key, item)
         finally:
             self.not_full.release()
 
@@ -230,7 +246,7 @@ class SynchronizedDict:
 
 
     def get(self, block=True, timeout=None):
-        """Removes and returns one arbitrary mapping. Contrary to the 
+        """Removes and returns one arbitrary mapping. Contrary to the
         get_with_key method, this call can be blocking.
 
         If optional args 'block' is true and 'timeout' is None (the default),
@@ -282,9 +298,13 @@ class SynchronizedDict:
 
 
     def _put(self, key, item):
+        new = False
+        if key in self.dict:
+            new = True
         self.dict[key] = [item]
+        return new
 
-    
+
     # adds an item to an existing place
     def _add_item_to_key(self, key, item):
         self.dict[key].append(item)
@@ -294,94 +314,6 @@ class SynchronizedDict:
     def _get_with_key(self, key):
         return self.dict.pop(key)
 
-    
+
     def _get(self):
         return self.dict.popitem()
-
-
-class DataPersistance:
-    """Class to write down the datas collected"""
-    def __init__(self):
-        self._init_folders()
-
- 
-    def _init_repo(self):
-        try:
-            os.listdir(os.path.join(os.getcwd()))
-        except OSError, os:
-            if err.errno == 2:
-                os.mkdir('pers', 0755)
-
-
-    def _init_folders(self):
-        """Creates the folder for the current day and then the actual time"""
-        try:
-            if (self.prefix):
-                return
-        except AttributeError:
-            # creates today folder
-            self._path = os.path.join('pers', datetime.now().day)
-            try:
-                os.listdir(os.path.join(os.getcwd(), self._path))
-            except OSError, err:
-                if err.errno == 2:
-                    os.mkdir(self._path, 0755)
-
-            # creates now folder
-            self._path = ''.join([self._path,
-                                  datetime.now().strftime('%H:%M:%S')])
-            os.mkdir(self._path, 0755)
-
-
-
-    def _init_db(self, columns_name):
-        try:
-            # just preventing from further call
-            if (self._conn):
-                pass
-        except AttributeError:
-            name = ''.join(['pers/', '_'.join(['crawler', \
-            datetime.datetime.now().strftime('%m-%d_%H-%M')]), '.db'])
-            self._conn = sqlite3.connect(name)
-
-
-    def dump_pool_to_html(pool):
-        keywords, anchors_list, _ , text_content = pool
-        # get all the domains for the urls, and make as many folders as there
-        # are domains. Create a global index which will points to each of the
-        # domains, which will then have themselves a summary page containing
-        # all the urls of the domain
-        # so it implies constituing a dict of domains as keys with a list of
-        # the urls from the domain as the values, and write at the end of the
-        # processing all the domains files.
-        # And same thing for the global summary, pointing to all the domains
-
-
-
-class FileWriter(threading.Thread):
-    """Thread writing to the disk the dump of one page, i.e. the url, the links
-    and the corresponding anchors, the keywords, the various scores and finally
-    the content of the page cleant of the html tags."""
-    def __init__(self, path, group=None, target=None, name=None, *args, **kwargs):
-        threading.Thread.__init__(self, name=name, args=args, kwargs=kwargs)
-        self._path = path
-        self._my_data = local()
-
-
-    def create_one_page(self, page_name, anchors, keywords, text_content):
-        page = self._prepare_header(page_name)
-        page = ''.join([page, self._prepare_footer])
-
-
-    def _prepare_header(self, title):
-        return '<html><head><title>%s</title></head><body><h1>%s</h1>' %\
-    (title, title)
-
- 
-    def _prepare_footer(self):
-        return '</body></html>'
-
-
-    def run(self):
-        pass
-

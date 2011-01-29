@@ -44,21 +44,23 @@ class PageProcessor_test(unittest.TestCase):
     def test_keyword(self):
         test_page = '<html><head><meta name="keywords" content="test, bla,\
  python" /></head></html>'
-        _,keywords,_,_,_ = self.parser._parse('http://localhost', test_page)
+        keywords = self.parser._parse('http://localhost',
+                                      test_page)['keywords']
         self.assertEqual(keywords, ['test', 'bla', 'python'])
 
 
     def test_none_keyword(self):
         test_page = '<html><head><meta name="keywords"\
  content="None" /></head></html>'
-        _,keywords,_,_,_ = self.parser._parse('http://localhost', test_page)
+        keywords = self.parser._parse('http://localhost',
+                                      test_page)['keywords']
         self.assertEqual(keywords, [])
 
 
     def test_link(self):
-        test_page = u'<html><head><title>Test</title></head><body><a href="/local" />\
- </body></html>'
-        _,_,_,links,_ = self.parser._parse('http://localhost', test_page)
+        test_page = u'<html><head><title>Test</title></head><body>\
+<a href="/local" /></body></html>'
+        links = self.parser._parse('http://localhost', test_page)['links']
         self.assertEqual(links, ['/local'])
 
 

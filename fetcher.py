@@ -185,8 +185,13 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
             time.sleep(1) # waits 1s at each step
             i += 1
 
-            # takes one url from the queue
-            current_url = url_to_visit.get()
+            # takes one url from the queue, with a timeout of 5 seconds
+            try:
+                current_url = url_to_visit.get(timeout=5)
+            except Empty:
+                logging.getLogger('fetcher.Crawler').critical('Not enough\
+ links in the pool, exiting crawling after having waited for 5 seconds')
+                break
 
             if (current_url in self._url_visited):
                 # url was already visited once

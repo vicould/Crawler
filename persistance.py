@@ -156,7 +156,11 @@ class FileWriter(threading.Thread):
         page = ''.join([self._prepare_header(page_url),
                         '<a href="index.html">Return to domain summary</a>\n'])
         for key,value in kwargs.items():
-            page = ''.join([page, self._prepare_section(key,value)])
+            try:
+                page = ''.join([page, self._prepare_section(key,value)])
+            except UnicodeDecodeError as e:
+                logging.getLogger('persistance.FileWriter').warning('Unicode\
+DecodeError %s' % e.reason)
         page = ''.join([page, self._prepare_footer()])
         self._write_file(page_url, page, filename_url=True)
 
@@ -196,8 +200,12 @@ class FileWriter(threading.Thread):
         # builds the list of anchors
         content = '<ul>'
         for link, anchor in anchors:
-            content = ''.join([content, '<li><a href="%s">%s</a></li>\n' %
+            try:
+                content = ''.join([content, '<li><a href="%s">%s</a></li>\n' %
                      (self._build_path_from_link(link), anchor)])
+            except UnicodeDecodeError as e:
+                logging.getLogger('persistance.FileWriter').warning('Unicode\
+DecodeError %s' % e.reason)
         return ''.join([content, '</ul>\n'])
 
 
@@ -256,7 +264,11 @@ class FileWriter(threading.Thread):
 
         html_file = open(os.path.join(current_path,
                                       filename.replace('/', '_')), 'wb')
-        html_file.write(content.encode('utf-8'))
+        try:
+            html_file.write(content.encode('utf-8'))
+        except UnicodeDecodeError as e:
+            logging.getLogger('persistance.FileWriter').warning('UnicodeEncode\
+Error %s' % e.reason)
         html_file.close()
         if filename_url:
             logging.getLogger('persistance.FileWriter').info('Wrote %s html\

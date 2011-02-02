@@ -193,8 +193,8 @@ class SynchronizedDict:
                         if remaining <= 0.0:
                             raise Full
                         self.not_full.wait(remaining)
-            new = self._put(key, item)
-            if new:
+            old = self._put(key, item)
+            if not old:
                 self.unfinished_tasks += 1
             self.not_empty.notify()
         finally:
@@ -298,11 +298,11 @@ class SynchronizedDict:
 
 
     def _put(self, key, item):
-        new = False
+        old = False
         if key in self.dict:
-            new = True
+            old = True
         self.dict[key] = [item]
-        return new
+        return old
 
 
     # adds an item to an existing place

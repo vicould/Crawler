@@ -7,6 +7,7 @@ import HTMLParser
 from HTMLParser import HTMLParseError
 import logging
 import math
+import mimetools
 import mimetypes
 import nltk
 import optparse
@@ -319,7 +320,7 @@ class PageProcessor(threading.Thread):
             for attr, value in attrs:
                 if (value == "keywords"):
                     keyword = True
-                if (keyword and attr == 'content'):
+                elif (keyword and attr == 'content'):
                     self._my_data.header_keywords = value.split(', ')
                     if ('None' in self._my_data.header_keywords and
                         self._my_data.header_keywords.__len__() == 1):
@@ -400,6 +401,11 @@ class PageProcessor(threading.Thread):
                     logging.getLogger('fetcher.PageProcessor').warn('Stopping\
  here for this page, too many errors')
                     break
+            except UnicodeDecodeError as e:
+                logging.getLogger('fetcher.PageProcessor').warn('UnicodeDecode\
+Error %s' % e.reason)
+                self._parser.reset()
+                break
         # last call to the parser as requested by the doc
         try:
             self._parser.close()

@@ -12,6 +12,8 @@ def main(args):
     
     options = {}
 
+    print 'Welcome to the vectorial indexer'
+
     try:
         while True:
             path = raw_input('Enter relative path of the collection\n--> ')
@@ -23,7 +25,6 @@ def main(args):
         print '\nCaught EOF, exiting'
         sys.exit(1)
 
-    print 'Welcome to the vectorial indexer'
     print('Indexing...')
 
     vocabulary_df_dict = {}

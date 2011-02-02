@@ -426,14 +426,12 @@ line %d colon %d in %s' % (e.msg, e.lineno, e.offset, base_url))
 
         inner_product = 0
         page_vector_norm = 0
-        page_length = len(tokens)
         theme_length = len(self._theme)
 
         # We loop through each word of the theme and modify the vector of the
         # current page. We also do the inner product and norm step by step
         for word in self._theme:
             tf = tokens.count(word)
-            print(self._theme,word,tokens.__contains__(word),tf)
 
             if tf>0:
                 # If the keyword has already been found, we increment its df.
@@ -448,9 +446,6 @@ line %d colon %d in %s' % (e.msg, e.lineno, e.offset, base_url))
                 df = self._df_dict[word]
                 idf = 1./df
                 weight = tf*idf
-
-                print(tf,df,weight,tokens.__contains__("iphone"))
-                
 
                 inner_product += weight / theme_length
                 page_vector_norm += (tf * idf)**2
@@ -562,6 +557,7 @@ web crawler project.'
 
     theme = kwargs['theme']
     theme = [x.lower() for x in theme.split(",")]
+    # To avoid duplicates
     theme = list(set(theme))
     kwargs['theme'] = theme
 

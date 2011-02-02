@@ -57,7 +57,7 @@ class Crawler:
         after the initialization."""
         self.starttime = datetime.datetime.now()
         self.log = kwargs.get('log', False)
-        self._iterations = kwargs.get('iterations', 500)
+        self._iterations = kwargs.get('iterations', 15)
         self._init_logger()
         logging.getLogger('fetcher.Crawler').info('Starting crawler')
 
@@ -447,7 +447,7 @@ line %d colon %d in %s' % (e.msg, e.lineno, e.offset, base_url))
                 except KeyError:
                     self._df_dict[word] = 1
 
-                tmp_result['keyword_found']+=word
+                tmp_result['keywords_found']+=[word]
 
                 df = self._df_dict[word]
                 idf = 1./df
@@ -482,7 +482,7 @@ found on this page: %s" % self._my_data.base_url)
                 if (url != None and html != None):
                     tmp_result = self._parse(url, html)
 
-                    tmp_result['keyword_found'] = []
+                    tmp_result['keywords_found'] = []
 
                     # add here the call to the score method, and add the result in
                     # the tmp_result using put

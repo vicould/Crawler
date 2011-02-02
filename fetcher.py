@@ -496,7 +496,7 @@ found on this page: %s" % self._my_data.base_url)
 
                     print("%s a pr score %i" % (url,score))
 
-                    if (score > 0.1):
+                    if (score > 0.4):
                         tmp_result["score"]=score
                         result_pool.put(tmp_result)
               

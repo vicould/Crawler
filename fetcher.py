@@ -493,7 +493,7 @@ found on this page: %s" % self._my_data.base_url)
                         if (self._theme.__contains__(x)):
                             score += (1-score)*0.1
 
-                    print("%s a pr score %f" % (url,score))
+                    print("%s a pour score %f" % (url,score))
 
                     if (score > 0.4):
                         tmp_result["score"]=score

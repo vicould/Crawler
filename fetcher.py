@@ -223,6 +223,8 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
  authorized on %s' % current_url)
                 continue
 
+            print("Fectching page n° %i. URL: %s" % (i+1,current_url))
+
             page = self.fetch_page(current_url)
 
             if (page == ''): # page is empty, no need to do anything with it
@@ -421,31 +423,31 @@ line %d colon %d in %s' % (e.msg, e.lineno, e.offset, base_url))
                 'text_content' : self._my_data.text_content}
 
 
-    def calculate_score(self,html_page):
+    def calculate_score(self,tmp_result):
         """Calculates the similarity of the web page to the theme. It uses the
         cosinus formula of the vectorial model"""
 
         # We get all the words in the page, converted into lower case
-        tokens = [x.lower() for x in
-                  nltk.word_tokenize(self._my_data.text_content)]
+        tokens = [x.lower() for x in  tmp_result['text_content'].split()]
 
         inner_product = 0
         page_vector_norm = 0
-        page_length = len(tokens)
         theme_length = len(self._theme)
 
         # We loop through each word of the theme and modify the vector of the
         # current page. We also do the inner product and norm step by step
         for word in self._theme:
-            tf = float(tokens.count(word))/page_length
+            tf = tokens.count(word)
 
             if tf>0:
-                # If the keyword has already been found, we increment its idf.
+                # If the keyword has already been found, we increment its df.
                 # Otherwise an exception is raised and we initialize it
                 try:
                     self._df_dict[word] += 1
                 except KeyError:
                     self._df_dict[word] = 1
+
+                tmp_result['keyword_found']+=word
 
                 df = self._df_dict[word]
                 idf = 1./df
@@ -478,12 +480,26 @@ found on this page: %s" % self._my_data.base_url)
 
                 # runs only
                 if (url != None and html != None):
-                   tmp_result = self._parse(url, html)
+                    tmp_result = self._parse(url, html)
 
-                # add here the call to the score method, and add the result in
-                # the tmp_result using put
+                    tmp_result['keyword_found'] = []
 
-                result_pool.put(tmp_result)
+                    # add here the call to the score method, and add the result in
+                    # the tmp_result using put
+                    keywords = tmp_result['keywords']
+                    score = self.calculate_score(tmp_result)
+
+                    for x in keywords:
+                        if (self._theme.__contains__(x)):
+                            score += (1-score)*0.1
+
+
+                    print("%s a pr score %i" % (url,score))
+
+                    if (score > 0.1):
+                        tmp_result["score"]=score
+                        result_pool.put(tmp_result)
+              
                 # tells to the pool that we finished working on the element,
                 # because the number of tasks is analysed to wait before
                 # shutting down the script
@@ -543,10 +559,11 @@ web crawler project.'
             sys.exit(1)
         start_url = start_url.split(',')
         kwargs['theme'] = theme
-        kwargs['start_url'] = start_url
+        kwargs['base_url'] = start_url
 
     theme = kwargs['theme']
-    theme = [x.lower() for x in theme]
+    theme = [x.lower() for x in theme.split(",")]
+    # To avoid duplicates
     theme = list(set(theme))
     kwargs['theme'] = theme
 

@@ -57,7 +57,7 @@ class Crawler:
         after the initialization."""
         self.starttime = datetime.datetime.now()
         self.log = kwargs.get('log', False)
-        self._iterations = kwargs.get('iterations', 10)
+        self._iterations = kwargs.get('iterations', 500)
         self._init_logger()
         logging.getLogger('fetcher.Crawler').info('Starting crawler')
 
@@ -433,7 +433,7 @@ line %d colon %d in %s' % (e.msg, e.lineno, e.offset, base_url))
         inner_product = 0
         page_vector_norm = 0
         theme_length = len(self._theme)
-
+       
         # We loop through each word of the theme and modify the vector of the
         # current page. We also do the inner product and norm step by step
         for word in self._theme:
@@ -493,8 +493,7 @@ found on this page: %s" % self._my_data.base_url)
                         if (self._theme.__contains__(x)):
                             score += (1-score)*0.1
 
-
-                    print("%s a pr score %i" % (url,score))
+                    print("%s a pr score %f" % (url,score))
 
                     if (score > 0.4):
                         tmp_result["score"]=score
@@ -543,7 +542,8 @@ web crawler project.'
         print 'Welcome to the dummy python crawler.'
         try:
             while True:
-                theme = raw_input('Enter keywords (theme) for the crawler\n--> ')
+                theme = raw_input('Enter keywords (theme) for the crawler \
+(separated by space)\n--> ')
                 if (theme.__len__() > 0):
                         break
                 print 'Please enter keywords (theme)'
@@ -562,9 +562,10 @@ web crawler project.'
         kwargs['base_url'] = start_url
 
     theme = kwargs['theme']
-    theme = [x.lower() for x in theme.split(",")]
+    theme = [x.lower() for x in theme.split()]
     # To avoid duplicates
     theme = list(set(theme))
+
     kwargs['theme'] = theme
 
     for i in range(5):

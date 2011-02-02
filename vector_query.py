@@ -26,7 +26,8 @@ def main(args):
             print 'Please enter a path'
 
         while True:
-            theme = raw_input('Enter keywords (theme) for the crawler\n--> ')
+            theme = raw_input('Enter keywords (query) for the crawler \
+(separated by a space)\n--> ')
             if (theme.__len__() > 0):
                     break
             print 'Please enter keywords (theme)'

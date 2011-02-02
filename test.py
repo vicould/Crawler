@@ -75,6 +75,30 @@ class PageProcessor_test(unittest.TestCase):
         self.assertEqual(self.parser.calculate_score(test_page),0)
 
 
+    def test_data(self):
+        test_page = '<html><body><p>Georges Brassens</p></body></html>'
+        text_content = \
+self.parser._parse('http://localhost', test_page)['text_content']
+        self.assertEqual(text_content, 'Georges Brassens')
+
+
+    def test_anchor(self):
+        test_page = u'<html><head><title>Test</title></head><body>\
+<a href="/local">Bouh</a></body></html>'
+        link, anchor = self.parser._parse('http://localhost',
+                                          test_page)['anchors'][0]
+        self.assertEqual(anchor, 'bouh')
+
+
+    def test_script(self):
+        test_page = u'<html><head><title>Test</title></head><body>\
+<script>LFDKNG</script><a href="/local">Bouh</a></body></html>'
+        link, anchor = self.parser._parse('http://localhost',
+                                          test_page)['anchors'][0]
+        self.assertEqual(anchor, 'bouh')
+
+
+
 class SortedQueue_test(unittest.TestCase):
     def setUp(self):
         self.sorted_queue = SortedQueue()

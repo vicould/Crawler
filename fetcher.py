@@ -3,6 +3,8 @@
 
 # libs
 import datetime
+import HTMLParser
+from HTMLParser import HTMLParseError
 import logging
 import math
 import mimetypes
@@ -20,8 +22,6 @@ import urllib
 import urllib2
 from urllib2 import URLError, HTTPError
 import urlparse
-import xml.parsers.expat
-from xml.parsers.expat import ExpatError
 
 # local modules
 from data_utils import SortedQueue
@@ -296,24 +296,31 @@ class PageProcessor(threading.Thread):
         return link
 
 
-    def _handle_start_element(self, name, attrs):
-        if (name == 'a'):
+    def _handle_start_element(self, name, attrs, startend=False):
+        if name == 'script':
+            self._my_data.script = True
+            return
+        elif self._my_data.script:
+            return
+        elif (name == 'a'):
             # link
-            self._my_data.is_anchor = True
-            self._my_data.anchor_data = ''
-            try:
-                link = attrs['href']
-                self._my_data.current_link = self._rebuild_link(link)
-                # we'll be storing later a tuple of anchors and corresponding link
-                self._my_data.links_list.append(link)
-            except KeyError:
-                logging.getLogger('fetcher.CrawlerHTMLParser').warning('Whut ?\
- anchor without any link ?')
+            for attr, value in attrs:
+                if attr == "href":
+                    self._my_data.is_anchor = not startend
+                    self._my_data.anchor_data = ''
+                    link = value
+                    self._my_data.current_link = self._rebuild_link(link)
+                    # we'll be storing later a tuple of anchors and corresponding link
+                    self._my_data.links_list.append(link)
+                    break
 
-        if (name == 'meta'):
-            try:
-                if (attrs.get('name') == 'keywords'):
-                    self._my_data.header_keywords = attrs['content'].split(', ')
+        elif (name == 'meta'):
+            keyword = False
+            for attr, value in attrs:
+                if (value == "keywords"):
+                    keyword = True
+                if (keyword and attr == 'content'):
+                    self._my_data.header_keywords = value.split(', ')
                     if ('None' in self._my_data.header_keywords and
                         self._my_data.header_keywords.__len__() == 1):
                         # none keyword, should not be added
@@ -321,12 +328,20 @@ class PageProcessor(threading.Thread):
                     else:
                         logging.getLogger('fetcher.CrawlerHTMLParser').info(\
 'Found %s in the header' % self._my_data.header_keywords)
-            except KeyError:
-                pass
+                    break
+
+
+    def _handle_startend_element(self, name, attrs):
+        self._handle_start_element(name, attrs, True)
 
 
     def _handle_end_element(self, name):
-        if (name == 'a'):
+        if name == 'script':
+            self._my_data.script = False
+            return
+        elif self._my_data.script:
+            return
+        elif (name == 'a'):
             self._my_data.is_anchor = False
             # stores the content of the anchor in the local variable
             self._my_data.anchors_list.append((self._my_data.current_link,
@@ -362,32 +377,35 @@ class PageProcessor(threading.Thread):
         self._my_data.links_list = []
         self._my_data.text_content = ''
         self._my_data.header_keywords = []
+        self._my_data.script = False
 
         # it is necessary to create a new instance of the parser each time,
         # no choice.
-        self._parser = xml.parsers.expat.ParserCreate()
-        self._parser.StartElementHandler = self._handle_start_element
-        self._parser.EndElementHandler = self._handle_end_element
-        self._parser.CharacterDataHandler = self._handle_data
+
+        self._parser = HTMLParser.HTMLParser()
+        self._parser.handle_starttag = self._handle_start_element
+        self._parser.handle_startendtag = self._handle_startend_element
+        self._parser.handle_endtag = self._handle_end_element
+        self._parser.handle_data = self._handle_data
 
         error = 0
         for line in html_page.splitlines(True):
             try:
-                self._parser.Parse(line)
-            except ExpatError as e:
+                self._parser.feed(line)
+            except HTMLParseError as e:
                 error += 1
-                logging.getLogger('fetcher.PageProcessor').warn('ExpatError %d\
- line %d colon %d in %s' % (e.code, e.lineno, e.offset, base_url))
-                if error == 10:
+                logging.getLogger('fetcher.PageProcessor').warn('HTMLParseError\
+ %s line %d colon %d in %s' % (e.msg, e.lineno, e.offset, base_url))
+                if error == 30:
                     logging.getLogger('fetcher.PageProcessor').warn('Stopping\
  here for this page, too many errors')
                     break
         # last call to the parser as requested by the doc
         try:
-            self._parser.Parse('', True)
-        except ExpatError as e:
-            logging.getLogger('fetcher.PageProcessor').warn('ExpatError %d\
-line %d colon %d in %s' % (e.code, e.lineno, e.offset, base_url))
+            self._parser.close()
+        except HTMLParseError as e:
+            logging.getLogger('fetcher.PageProcessor').warn('HTMLParseError %s\
+line %d colon %d in %s' % (e.msg, e.lineno, e.offset, base_url))
 
         logging.getLogger('fetcher.PageProcessor').info('Page %s processed' %
                                                         base_url)
@@ -473,11 +491,11 @@ found on this page: %s" % self._my_data.base_url)
 def main(args):
     kwargs = {'log':True}
     if (args.__len__() > 1):
-        usage_str = 'usage: %prog [options] -u URL -t THEME'
+        usage_str = u'usage: %prog [options] -u URL -t THEME'
         description_str = u'This is a dummy thematic crawler written in Python,\
  using threads to process each page collected and to write down the results.\n\
-Written by Nicolas Bontoux and Ludovic Delaveau for the "aspects avancés du\
-web" crawler project.'
+Written by Nicolas Bontoux and Ludovic Delaveau for the aspects avancés du\
+web crawler project.'
         parser = optparse.OptionParser(description=description_str,
                                       usage=usage_str)
 

@@ -67,8 +67,8 @@ Created day folder in the current path, with mode 0755')
  %s folder to store the current results' % self._path)
 
 
-    def launch_dump(self):
-        """Launch the dump of the result pool"""
+    def launch_dump(self, top10):
+        """Launch the dump of the result pool, with the page rank top 10."""
         self._starttime = datetime.now()
         logging.getLogger('persistance.DataPersistance').info('Starting result\
  dumping')
@@ -93,7 +93,7 @@ Created day folder in the current path, with mode 0755')
         logging.getLogger('persistance.DataPersistance').info('Domain\
  all written, finishing dumping with global summary.')
         fw = FileWriter(self._path)
-        fw._create_summary_page(domain_set)
+        fw._create_summary_page(domain_set, top10)
         logging.getLogger('persistance.DataPersistance').info('Finished\
  dumping after %ss of execution' % 
                         str(datetime.now() - self._starttime))
@@ -119,11 +119,11 @@ class FileWriter(threading.Thread):
         self._my_data = local()
 
 
-    def _create_summary_page(self, urls):
+    def _create_summary_page(self, urls, top10):
         # creates the global summary, pointing to all the domains found while
         # crawling
         page = self._prepare_header('Summary page')
-        page = ''.join([page, '<p><ul>\n'])
+        page = ''.join([page, '<h2>Domain index</h2>\n<ul>\n'])
         while True:
             try:
                 domain = urls.get_nowait()
@@ -131,7 +131,11 @@ class FileWriter(threading.Thread):
                                 (''.join([domain, '/index.html']), domain)])
             except Empty:
                 break
-        page = ''.join([page, '</ul></p>\n', self._prepare_footer()])
+        page = ''.join([page, '</ul>\n<h2>Page rank top 10</h2><ul>\n'])
+        for score, link in top10:
+            page = ''.join([page, '<li>Score %s for %s</li>\n' %
+                            (score, link)])
+        page = ''.join([page, '</ul>\n', self._prepare_footer()])
         self._write_file('index.html', page, summary_page=True)
 
 

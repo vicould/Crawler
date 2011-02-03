@@ -28,6 +28,8 @@ import urlparse
 from data_utils import SortedQueue
 import logger
 from persistance import DataPersistance, result_pool
+from ranking import PageRank
+from ranking import page_rank_queue
 
 
 url_to_visit = SortedQueue()
@@ -223,7 +225,7 @@ info(''.join(['    ', rule[:rule.__len__()-1]]))
  authorized on %s' % current_url)
                 continue
 
-            print("Fectching page n° %i. URL: %s" % (i+1,current_url))
+            print("Fetching page n° %i. URL: %s" % (i+1,current_url))
 
             page = self.fetch_page(current_url)
 
@@ -313,8 +315,9 @@ class PageProcessor(threading.Thread):
                     self._my_data.anchor_data = ''
                     link = value
                     self._my_data.current_link = self._rebuild_link(link)
-                    # we'll be storing later a tuple of anchors and corresponding link
-                    self._my_data.links_list.append(link)
+                    # we'll be storing later a tuple of anchors and 
+                    # corresponding link
+                    self._my_data.links_list.append(self._my_data.current_link)
                     break
 
         elif (name == 'meta'):
@@ -344,7 +347,7 @@ class PageProcessor(threading.Thread):
             return
         elif self._my_data.script:
             return
-        elif (name == 'a'):
+        elif (self._my_data.is_anchor and name == 'a'):
             self._my_data.is_anchor = False
             # stores the content of the anchor in the local variable
             self._my_data.anchors_list.append((self._my_data.current_link,
@@ -417,6 +420,12 @@ line %d colon %d in %s' % (e.msg, e.lineno, e.offset, base_url))
 
         logging.getLogger('fetcher.PageProcessor').info('Page %s processed' %
                                                         base_url)
+
+
+        # adds links list to page rank container, in the form of the tuple 
+        # (base_url, targets)
+        page_rank_queue.put((base_url, self._my_data.links_list))
+
         return {'url' : base_url, 'keywords' : self._my_data.header_keywords,
                 'anchors' : self._my_data.anchors_list,
                 'links' : self._my_data.links_list,
@@ -543,7 +552,7 @@ web crawler project.'
         try:
             while True:
                 theme = raw_input('Enter keywords (theme) for the crawler \
-(separated by space)\n--> ')
+(separated by commas)\n--> ')
                 if (theme.__len__() > 0):
                         break
                 print 'Please enter keywords (theme)'
@@ -562,7 +571,7 @@ web crawler project.'
         kwargs['base_url'] = start_url
 
     theme = kwargs['theme']
-    theme = [x.lower() for x in theme.split()]
+    theme = [x.lower() for x in theme.split(',')]
     # To avoid duplicates
     theme = list(set(theme))
 
@@ -573,10 +582,17 @@ web crawler project.'
         p.daemon = True
         p.start()
 
+    # crawls !
     crawler = Crawler(**kwargs)
     crawler.crawl()
+
+    # computest page rank scores for the 10 best pages
+    pr = PageRank()
+    top10 = pr.get_top10()
+
+    # dumps results
     pers = DataPersistance()
-    pers.launch_dump()
+    pers.launch_dump(top10)
 
 
 

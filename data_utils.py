@@ -9,6 +9,28 @@ from time import time as _time
 import os
 
 
+class ArrayQueue(Queue):
+    def _init(self, maxsize):
+        self._queue = []
+
+
+    def _qsize(self, len=len):
+        return len(self._queue)
+
+    
+    def _put(self, item):
+        self._queue.append(item)
+
+
+    def _get(self):
+        return self._queue.pop()
+
+
+    def get_copy(self):
+        return self._queue
+
+
+
 class SetQueue(Queue):
     def _init(self, maxsize):
         self.queue = set([])

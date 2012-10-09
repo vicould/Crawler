@@ -46,7 +46,7 @@ class PageRank():
             link_pos = self._link_dict[link]
             for target in targets:
                 try:
-                    # no zero division possible, if len=0 we don't go 
+                    # no zero division possible, if len=0 we don't go
                     # into the loop
                     self._transition_matrix[link_pos]\
 [self._link_dict[target]] = 0.8/target_len + 0.2/self._links_number
@@ -69,7 +69,7 @@ class PageRank():
             new_vector.append(step_sum)
         return new_vector
 
-    
+
     def get_top10(self):
         """Returns the top 10 for the page rank algorithm for the urls given at
         the initialization of the class. It is a list of tuples, containing the

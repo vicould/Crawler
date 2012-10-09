@@ -17,7 +17,7 @@ class ArrayQueue(Queue):
     def _qsize(self, len=len):
         return len(self._queue)
 
-    
+
     def _put(self, item):
         self._queue.append(item)
 

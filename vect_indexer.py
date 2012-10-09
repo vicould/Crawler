@@ -11,7 +11,7 @@ import sys;
 def main(args):
     """This program indexes a given collection by calculating the vector of scores
     for each document"""
-    
+
     options = {}
 
     print 'Welcome to the vectorial indexer'
@@ -30,9 +30,9 @@ def main(args):
 
     print('Indexing...')
 
-    # Dictionary containing all the words with their df    
+    # Dictionary containing all the words with their df
     vocabulary_df_dict = {}
-    # Dictionary containing all documents' name along with their score    
+    # Dictionary containing all documents' name along with their score
     index_dict = {}
 
     # Absolute path of the collection
@@ -45,7 +45,7 @@ def main(args):
     # Lets calculate the df for every term (longer than 3 characters) of every document
     for filename in fileList:
 
-        # We open the file and separate all the words bigger than 3 characters        
+        # We open the file and separate all the words bigger than 3 characters
         currentFile = open(os.path.join(collection_path ,filename));
         fileWords = currentFile.read().split();
         fileWords = [x.lower() for x in fileWords if x.__len__()>3]
@@ -67,7 +67,7 @@ def main(args):
     # Now lets calculate the tf.idf for each term in the dictionary
     for filename in fileList:
 
-        # We open the file and separate all the words bigger than 3 characters        
+        # We open the file and separate all the words bigger than 3 characters
         currentFile = open(os.path.join(collection_path ,filename));
         fileWords = currentFile.read().split();
         fileWords = [x.lower() for x in fileWords if x.__len__()>3]
@@ -100,4 +100,4 @@ if __name__ == '__main__':
    main(sys.argv)
 
 
-    
+

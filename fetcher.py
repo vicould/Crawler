@@ -315,7 +315,7 @@ class PageProcessor(threading.Thread):
                     self._my_data.anchor_data = ''
                     link = value
                     self._my_data.current_link = self._rebuild_link(link)
-                    # we'll be storing later a tuple of anchors and 
+                    # we'll be storing later a tuple of anchors and
                     # corresponding link
                     self._my_data.links_list.append(self._my_data.current_link)
                     break
@@ -422,7 +422,7 @@ line %d colon %d in %s' % (e.msg, e.lineno, e.offset, base_url))
                                                         base_url)
 
 
-        # adds links list to page rank container, in the form of the tuple 
+        # adds links list to page rank container, in the form of the tuple
         # (base_url, targets)
         page_rank_queue.put((base_url, self._my_data.links_list))
 
@@ -442,7 +442,7 @@ line %d colon %d in %s' % (e.msg, e.lineno, e.offset, base_url))
         inner_product = 0
         page_vector_norm = 0
         theme_length = len(self._theme)
-       
+
         # We loop through each word of the theme and modify the vector of the
         # current page. We also do the inner product and norm step by step
         for word in self._theme:
@@ -507,7 +507,7 @@ found on this page: %s" % self._my_data.base_url)
                     if (score > 0.4):
                         tmp_result["score"]=score
                         result_pool.put(tmp_result)
-              
+
                 # tells to the pool that we finished working on the element,
                 # because the number of tasks is analysed to wait before
                 # shutting down the script

@@ -11,7 +11,7 @@ import sys;
 def main(args):
     """This program calculates, in response to a given query, the score
     of each document in a given collection"""
-    
+
     options = {}
 
     print 'Welcome to the vectorial queryer'
@@ -31,7 +31,7 @@ def main(args):
             if (theme.__len__() > 0):
                     break
             print 'Please enter keywords (theme)'
- 
+
 
     except EOFError:
         print '\nCaught EOF, exiting'
@@ -87,7 +87,7 @@ for each document")
     # Now lets calculate the score (cosinus) for each document
     for filename in fileList:
 
-        # We open the file and separate all the words bigger than 3 characters        
+        # We open the file and separate all the words bigger than 3 characters
         currentFile = open(os.path.join(collection_path ,filename));
         fileWords = currentFile.read().split();
         fileWords = [x.lower() for x in fileWords if x.__len__()>3]
@@ -120,7 +120,7 @@ for each document")
             # Classic similarity formula. Cosinus angle between our page
             # vector and the theme vector (filled with 1/len(theme))
             score = float(inner_product) / (page_vector_norm * 1./math.sqrt(theme_length))
-        
+
         # We add our score in the dictionary next to the filename
         result_dict[filename]=score
 
